@@ -239,6 +239,21 @@
                         </h5>
                     </div>
                     <div class="card-body">
+                        <!-- Score Explanation -->
+                        <div class="alert alert-info mb-3">
+                            <h6 class="alert-heading"><i class="fas fa-info-circle"></i> Understanding the Scores</h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <strong>Base Score:</strong> Original algorithm confidence (OCR + visual features)
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>OpenAI Score:</strong> AI-powered relevance assessment (when available)
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>Final Score:</strong> Combined weighted score for best results
+                                </div>
+                            </div>
+                        </div>
                         <div id="searchResults"></div>
                     </div>
                 </div>
@@ -551,10 +566,16 @@
                                     ${result.openai_score ? `
                                         <div class="mb-2">
                                             <span class="badge bg-primary confidence-badge">
-                                                OpenAI: ${result.openai_score}
+                                                OpenAI Score: ${result.openai_score}
                                             </span>
                                         </div>
-                                    ` : ''}
+                                    ` : `
+                                        <div class="mb-2">
+                                            <span class="badge bg-light text-dark confidence-badge">
+                                                OpenAI Score: Not Available
+                                            </span>
+                                        </div>
+                                    `}
                                 </div>
                             </div>
                         </div>

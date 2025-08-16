@@ -146,7 +146,8 @@ def search():
         'query': request.form.get('query', ''),
         'results': [],
         'total_results': 0,
-        'message': 'Search functionality not available in minimal mode. Focus on upload testing.'
+        'message': 'Search functionality not available in minimal mode. Focus on upload testing.',
+        'openai_available': False
     })
 
 @app.route('/status')
