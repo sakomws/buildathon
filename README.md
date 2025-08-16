@@ -1,49 +1,80 @@
+# 🚀 Buildathon - AI/ML Project Collection
 
+A comprehensive collection of AI/ML projects showcasing modern development practices, OpenAI integration, and practical applications.
 
-Project 1: Visual Memory Search
+## 📚 **Documentation Hub**
 
-  Description: Search your screenshot history using natural language queries for both text content AND visual elements.
+**📖 [View Complete Documentation](docs/README.md)**
 
-  Requirements:
-  • Accept folder of screenshots
-  • Extract both OCR text AND visual descriptions
-  • Handle queries like "error message about auth" OR "screenshot with blue button"
-  • Return top 5 matches with confidence scores
+All project documentation, setup guides, and technical details are now organized in the `docs/` folder for easy navigation.
 
-Project 2: Voice-to-Slide Generator
+## 🎯 **Featured Projects**
 
-Description: Generate a polished slide deck from a 3-minute spoken prompt.
+### **Project 1: Visual Memory Search** 🖼️
+*Advanced screenshot search using AI, OCR, and computer vision*
 
-Requirements:
-• Upload or record audio
-• Output a deck as HTML presentation or PDF with ≥ 5 slides and speaker notes
+- **Status**: ✅ Complete & Tested
+- **Features**: OpenAI GPT-4 Vision, semantic search, AI validation
+- **Tech Stack**: Python, OpenCV, Tesseract, Transformers, OpenAI API
+- **Quick Demo**: `cd p1 && python main.py test_screenshots --query "blue button"`
 
-Project 3: Employee Engagement Pulse
+### **Future Projects** 🚧
+- Project 2: [Coming Soon]
+- Project 3: [Coming Soon] 
+- Project 4: [Coming Soon]
+- Project 5: [Coming Soon]
 
-Description: Provide managers with a weekly sentiment dashboard built from all messages in configurable Slack channels.
+## 🚀 **Quick Start**
 
-Requirements:
-• Monitor a user-defined list of Slack channels (include threads + reactions)
-• Run text & emoji sentiment analysis on every message
-• Aggregate daily mood into weekly trends with burnout warnings
-• Generate actionable, team-level insights for managers
+```bash
+# Clone the repository
+git clone https://github.com/sakomws/buildathon.git
+cd buildathon
 
-Project 4: Codebase Time Machine
+# View documentation
+open docs/README.md
 
-  Description: Navigate any codebase through time, understanding evolution of features and architectural decisions.
+# Try Project 1
+cd p1
+chmod +x quick_start.sh
+./quick_start.sh
+```
 
-  Requirements:
-  • Clone repo and analyze full git history
-  • Build semantic understanding of code changes over time
-  • Answer questions like "Why was this pattern introduced?" or "Show me how auth evolved"
-  • Visualize code ownership and complexity trends
-  • Link commits to business features/decisions
+## 🛠️ **Tech Stack**
 
-Project 5: Universal Knowledge-Graph Builder
+- **AI/ML**: OpenAI GPT-4, Transformers, Sentence Transformers
+- **Computer Vision**: OpenCV, PIL, Tesseract OCR
+- **Backend**: Python 3.8+, NumPy, SciKit-learn
+- **Development**: Git, Virtual Environments, Comprehensive Testing
 
-Description: Convert a document archive into an interactive knowledge graph with NL Q&A.
+## 📁 **Repository Structure**
 
-Requirements:
-• Ingest TXT files, and URLs (≤ 100 MB total)
-• Build a graph of concepts with node/edge visualization
-• Support NL questions over the graph
+```
+buildathon/
+├── docs/          # 📚 Complete project documentation
+├── p1/            # 🖼️ Visual Memory Search
+├── p2/            # 🚧 Future project
+├── p3/            # 🚧 Future project
+├── p4/            # 🚧 Future project
+└── p5/            # 🚧 Future project
+```
+
+## 🔗 **Links**
+
+- **📖 [Full Documentation](docs/README.md)** - Complete guides and tutorials
+- **🖼️ [Project 1 Details](docs/PROJECT_1_README.md)** - Visual Memory Search
+- **🤖 [AI Features](docs/PROJECT_1_OPENAI_README.md)** - OpenAI integration
+- **🏗️ [Architecture](docs/PROJECT_1_STRUCTURE.md)** - Technical implementation
+- **🧪 [Testing Guide](docs/PROJECT_1_TEST_DATASET.md)** - Test procedures
+
+## 🤝 **Contributing**
+
+We welcome contributions! Please see our [contributing guidelines](docs/README.md#contributing) in the documentation.
+
+## 📄 **License**
+
+Open source - see individual project files for specific licensing.
+
+---
+
+**Ready to build amazing AI applications? Start with our [documentation](docs/README.md)! 🚀**
