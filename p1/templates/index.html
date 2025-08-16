@@ -695,16 +695,12 @@
                     </div>
                     <div class="card-body">
                         <div class="d-grid gap-2">
-                            <form action="{{ url_for('generate_test_data') }}" method="post" class="d-inline">
-                                <button type="submit" class="btn btn-success w-100 mb-2">
-                                    <i class="fas fa-magic"></i> Generate Test Data
-                                </button>
-                            </form>
-                            <form action="{{ url_for('rebuild_index') }}" method="post" class="d-inline">
-                                <button type="submit" class="btn btn-warning w-100 mb-2">
-                                    <i class="fas fa-sync"></i> Rebuild Index
-                                </button>
-                            </form>
+                            <button type="button" class="btn btn-success w-100 mb-2" id="generateTestBtn" onclick="generateTestData()">
+                                <i class="fas fa-magic"></i> Generate Test Data
+                            </button>
+                            <button type="button" class="btn btn-warning w-100 mb-2" id="rebuildIndexBtn" onclick="rebuildIndex()">
+                                <i class="fas fa-sync"></i> Rebuild Index
+                            </button>
                             <button type="button" class="btn btn-info w-100 mb-2" onclick="checkDebugInfo()">
                                 <i class="fas fa-bug"></i> Debug Info
                             </button>
@@ -905,6 +901,19 @@
             
             // Folder upload form
             document.getElementById('folderForm').addEventListener('submit', handleFolderUpload);
+            
+            // Prevent form submission on system control buttons
+            document.getElementById('generateTestBtn').addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                generateTestData();
+            });
+            
+            document.getElementById('rebuildIndexBtn').addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                rebuildIndex();
+            });
             
             // Auto-refresh status
             setInterval(checkStatus, 30000); // Check every 30 seconds
@@ -1569,6 +1578,109 @@
                 icon.className = 'fas fa-sun';
             } else {
                 icon.className = 'fas fa-moon';
+            }
+        }
+
+        async function generateTestData() {
+            console.log('generateTestData function called');
+            
+            const generateBtn = document.getElementById('generateTestBtn');
+            if (generateBtn) {
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+            }
+
+            try {
+                console.log('Making fetch request to /generate_test_data');
+                const response = await fetch('/generate_test_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                });
+
+                console.log('Response received:', response);
+                const data = await response.json();
+                console.log('Data received:', data);
+                
+                if (data.success) {
+                    // Show success message
+                    showAlert('success', `✅ ${data.message}`);
+                    // Refresh the page to show updated results
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    showAlert('danger', `❌ Test data generation failed: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Error in generateTestData:', error);
+                showAlert('danger', `❌ Request failed: ${error.message}`);
+            } finally {
+                if (generateBtn) {
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Test Data';
+                }
+            }
+        }
+
+        async function rebuildIndex() {
+            const rebuildBtn = document.getElementById('rebuildIndexBtn');
+            if (rebuildBtn) {
+                rebuildBtn.disabled = true;
+                rebuildBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rebuilding...';
+            }
+
+            try {
+                const response = await fetch('/rebuild_index', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Show success message
+                    showAlert('success', `✅ ${data.message}`);
+                    // Refresh the page to show updated results
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    showAlert('danger', `❌ Index rebuild failed: ${data.error}`);
+                }
+            } catch (error) {
+                showAlert('danger', `❌ Request failed: ${error.message}`);
+            } finally {
+                if (rebuildBtn) {
+                    rebuildBtn.disabled = false;
+                    rebuildBtn.innerHTML = '<i class="fas fa-sync"></i> Rebuild Index';
+                }
+            }
+        }
+
+        function showAlert(type, message) {
+            // Create alert element
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            // Insert at the top of the container
+            const container = document.querySelector('.container');
+            if (container) {
+                container.insertBefore(alertDiv, container.firstChild);
+                
+                // Auto-remove after 5 seconds
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.remove();
+                    }
+                }, 5000);
             }
         }
     </script>
