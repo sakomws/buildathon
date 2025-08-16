@@ -234,6 +234,77 @@ def upload_file():
         flash(f'Upload failed: {str(e)}', 'error')
         return redirect(url_for('index'))
 
+@app.route('/upload_folder', methods=['POST'])
+def upload_folder():
+    """Handle folder upload with multiple images."""
+    try:
+        if 'files[]' not in request.files:
+            flash('No folder selected', 'error')
+            return redirect(request.url)
+        
+        files = request.files.getlist('files[]')
+        
+        if not files or files[0].filename == '':
+            flash('No files in folder', 'error')
+            return redirect(request.url)
+        
+        # Filter for image files
+        image_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp'}
+        image_files = []
+        
+        for file in files:
+            if file and file.filename:
+                # Get file extension
+                file_ext = os.path.splitext(file.filename)[1].lower()
+                if file_ext in image_extensions:
+                    image_files.append(file)
+        
+        if not image_files:
+            flash('No image files found in folder', 'error')
+            return redirect(request.url)
+        
+        logger.info(f"Processing {len(image_files)} images from folder upload")
+        
+        # Process each image
+        success_count = 0
+        failed_count = 0
+        
+        for file in image_files:
+            try:
+                if file and allowed_file(file.filename):
+                    # Save file
+                    filename = secure_filename(file.filename)
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(file_path)
+                    
+                    # Add to search engine
+                    if search_engine.add_screenshot(file_path):
+                        success_count += 1
+                        logger.info(f"Successfully processed folder image: {filename}")
+                    else:
+                        failed_count += 1
+                        logger.warning(f"Failed to process folder image: {filename}")
+                else:
+                    failed_count += 1
+                    logger.warning(f"Invalid file in folder: {file.filename}")
+            except Exception as e:
+                failed_count += 1
+                logger.error(f"Error processing folder image {file.filename}: {e}")
+        
+        # Flash results
+        if success_count > 0:
+            flash(f'Successfully uploaded and indexed {success_count} images from folder', 'success')
+        if failed_count > 0:
+            flash(f'Failed to process {failed_count} images from folder', 'warning')
+        
+        logger.info(f"Folder upload completed: {success_count} success, {failed_count} failed")
+        return redirect(url_for('index'))
+        
+    except Exception as e:
+        logger.error(f"Folder upload error: {e}")
+        flash(f'Folder upload failed: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
 @app.route('/rebuild', methods=['POST'])
 def rebuild_index():
     """Rebuild the search index."""

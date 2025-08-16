@@ -519,14 +519,24 @@
                             </div>
                             <!-- Keep file input always present -->
                             <input type="file" name="file" id="fileInput" class="d-none" accept="image/*">
+                            <!-- Add folder input -->
+                            <input type="file" id="folderInput" class="d-none" webkitdirectory directory multiple>
                             <div class="mt-3">
-                                <button type="submit" class="btn btn-primary" id="uploadBtn">
+                                <button type="submit" class="btn btn-primary" id="uploadBtn" onclick="handleUploadClick(event)">
                                     <i class="fas fa-upload"></i> Upload & Index
+                                </button>
+                                <button type="button" class="btn btn-outline-primary ms-2" onclick="document.getElementById('folderInput').click()">
+                                    <i class="fas fa-folder-open"></i> Upload Folder
                                 </button>
                                 <button type="button" class="btn btn-outline-secondary ms-2" onclick="testFileInput()">
                                     <i class="fas fa-vial"></i> Test File Input
                                 </button>
                             </div>
+                        </form>
+                        
+                        <!-- Separate form for folder uploads -->
+                        <form action="{{ url_for('upload_folder') }}" method="post" enctype="multipart/form-data" id="folderForm" style="display: none;">
+                            <input type="file" name="files[]" id="folderFormInput" multiple>
                         </form>
                     </div>
                 </div>
@@ -673,33 +683,112 @@
             // Upload form validation
             document.getElementById('uploadForm').addEventListener('submit', validateUploadForm);
             
+            // Folder upload form
+            document.getElementById('folderForm').addEventListener('submit', handleFolderUpload);
+            
             // Auto-refresh status
             setInterval(checkStatus, 30000); // Check every 30 seconds
         }
 
+        async function handleFolderUpload(e) {
+            e.preventDefault();
+            
+            const folderFormInput = document.getElementById('folderFormInput');
+            if (!folderFormInput || folderFormInput.files.length === 0) {
+                alert('Please select a folder first');
+                return false;
+            }
+            
+            // Show loading state
+            const uploadBtn = document.getElementById('uploadBtn');
+            const originalText = uploadBtn.innerHTML;
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading Folder...';
+            
+            try {
+                // Submit the folder form
+                const formData = new FormData();
+                for (let file of folderFormInput.files) {
+                    formData.append('files[]', file);
+                }
+                
+                const response = await fetch('/upload_folder', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    // Refresh the page to show updated results
+                    window.location.reload();
+                } else {
+                    alert('Folder upload failed. Please try again.');
+                }
+            } catch (error) {
+                console.error('Folder upload error:', error);
+                alert('Folder upload failed: ' + error.message);
+            } finally {
+                // Reset loading state
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = originalText;
+            }
+        }
+
+        function handleUploadClick(e) {
+            e.preventDefault();
+            
+            const uploadArea = document.getElementById('uploadArea');
+            const storedFile = uploadArea.getAttribute('data-selected-file');
+            
+            if (storedFile) {
+                try {
+                    const fileInfo = JSON.parse(storedFile);
+                    
+                    if (fileInfo.type === 'folder') {
+                        // Handle folder upload
+                        handleFolderUpload(e);
+                    } else {
+                        // Handle single file upload - submit the form normally
+                        document.getElementById('uploadForm').submit();
+                    }
+                } catch (e) {
+                    console.error('Failed to parse stored file info:', e);
+                    // Default to single file upload
+                    document.getElementById('uploadForm').submit();
+                }
+            } else {
+                // No file selected, show error
+                alert('Please select a file or folder before uploading.');
+            }
+        }
+
         function validateUploadForm(e) {
             const fileInput = document.getElementById('fileInput');
+            const folderInput = document.getElementById('folderInput');
             const uploadArea = document.getElementById('uploadArea');
             
             console.log('=== FORM VALIDATION START ===');
             console.log('Validating upload form...');
             console.log('File input element:', fileInput);
+            console.log('Folder input element:', folderInput);
             console.log('File input files:', fileInput?.files);
+            console.log('Folder input files:', folderInput?.files);
             console.log('File input files length:', fileInput?.files?.length);
+            console.log('Folder input files length:', folderInput?.files?.length);
             console.log('File input value:', fileInput?.value);
+            console.log('Folder input value:', folderInput?.value);
             
             // Test if we can access the file input
-            if (!fileInput) {
-                console.error('File input element not found!');
+            if (!fileInput && !folderInput) {
+                console.error('Neither file input nor folder input element found!');
                 e.preventDefault();
-                alert('File input not found. Please refresh the page and try again.');
+                alert('File input or Folder input not found. Please refresh the page and try again.');
                 return false;
             }
             
             // Check if file input has a file
-            if (fileInput.files.length === 0) {
+            if (fileInput && fileInput.files.length === 0 && folderInput && folderInput.files.length === 0) {
                 e.preventDefault();
-                console.error('No file attached to input');
+                console.error('No file or folder attached to input');
                 
                 // Check if we have a stored file reference
                 const storedFile = uploadArea.getAttribute('data-selected-file');
@@ -714,22 +803,24 @@
                     }
                 } else {
                     console.error('No stored file info found');
-                    alert('Please select a file before uploading.');
+                    alert('Please select a file or folder before uploading.');
                 }
                 return false;
             }
             
-            // Check file type
-            const file = fileInput.files[0];
-            console.log('File to upload:', file);
-            console.log('File name:', file.name);
-            console.log('File size:', file.size);
-            console.log('File type:', file.type);
-            
-            if (!file.type.startsWith('image/')) {
-                e.preventDefault();
-                alert('Please select an image file (PNG, JPG, JPEG, GIF, BMP).');
-                return false;
+            // Check file type (if file input is used)
+            if (fileInput && fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                console.log('File to upload:', file);
+                console.log('File name:', file.name);
+                console.log('File size:', file.size);
+                console.log('File type:', file.type);
+                
+                if (!file.type.startsWith('image/')) {
+                    e.preventDefault();
+                    alert('Please select an image file (PNG, JPG, JPEG, GIF, BMP).');
+                    return false;
+                }
             }
             
             console.log('File validation passed, proceeding with upload...');
@@ -746,10 +837,12 @@
         function setupFileUpload() {
             const uploadArea = document.getElementById('uploadArea');
             const fileInput = document.getElementById('fileInput');
+            const folderInput = document.getElementById('folderInput');
 
             console.log('Setting up file upload...');
             console.log('Upload area:', uploadArea);
             console.log('File input:', fileInput);
+            console.log('Folder input:', folderInput);
 
             // Drag and drop
             uploadArea.addEventListener('dragover', (e) => {
@@ -767,32 +860,75 @@
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
                     console.log('File dropped:', files[0].name);
-                    fileInput.files = files;
-                    showFilePreview(files[0]);
+                    if (fileInput) {
+                        fileInput.files = files;
+                        showFilePreview(files[0]);
+                    } else if (folderInput) {
+                        folderInput.files = files;
+                        console.log('Folder input files after drop:', folderInput.files);
+                    }
                 }
             });
 
             // File selection
-            fileInput.addEventListener('change', (e) => {
-                if (e.target.files.length > 0) {
-                    const file = e.target.files[0];
-                    console.log('File selected:', file.name, file.size, file.type);
-                    showFilePreview(file);
-                    
-                    // Store the file reference in the upload area
-                    uploadArea.setAttribute('data-selected-file', JSON.stringify({
-                        name: file.name,
-                        size: file.size,
-                        type: file.type
-                    }));
-                    
-                    // Debug: Check if file is properly attached
-                    setTimeout(() => {
-                        console.log('After preview - File input files:', fileInput.files);
-                        console.log('After preview - File input files length:', fileInput.files.length);
-                    }, 100);
-                }
-            });
+            if (fileInput) {
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        const file = e.target.files[0];
+                        console.log('File selected:', file.name, file.size, file.type);
+                        showFilePreview(file);
+                        
+                        // Store the file reference in the upload area
+                        uploadArea.setAttribute('data-selected-file', JSON.stringify({
+                            name: file.name,
+                            size: file.size,
+                            type: file.type
+                        }));
+                        
+                        // Debug: Check if file is properly attached
+                        setTimeout(() => {
+                            console.log('After preview - File input files:', fileInput.files);
+                            console.log('After preview - File input files length:', fileInput.files.length);
+                        }, 100);
+                    }
+                });
+            }
+
+            if (folderInput) {
+                folderInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        console.log('Folder selected:', e.target.files);
+                        // For folder uploads, we don't have a single file to preview,
+                        // but we can still show the count and allow the user to proceed.
+                        // The actual processing will happen on the backend.
+                        const uploadArea = document.getElementById('uploadArea');
+                        uploadArea.innerHTML = `
+                            <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                            <p class="mb-2">Selected folder: <strong>${e.target.files[0].webkitRelativePath.split('/')[0]}</strong></p>
+                            <p class="small text-muted mb-2">${e.target.files.length} files selected</p>
+                            <button type="button" class="btn btn-outline-primary" onclick="changeFile()">
+                                Change Folder
+                            </button>
+                        `;
+                        uploadArea.setAttribute('data-selected-file', JSON.stringify({
+                            name: e.target.files[0].webkitRelativePath.split('/')[0],
+                            type: 'folder',
+                            count: e.target.files.length
+                        }));
+                        
+                        // Update the folder form input
+                        const folderFormInput = document.getElementById('folderFormInput');
+                        if (folderFormInput) {
+                            // Transfer files to the folder form
+                            const dataTransfer = new DataTransfer();
+                            for (let file of e.target.files) {
+                                dataTransfer.items.add(file);
+                            }
+                            folderFormInput.files = dataTransfer.files;
+                        }
+                    }
+                });
+            }
         }
 
         function showFilePreview(file) {
@@ -1084,6 +1220,7 @@
             // Reset the upload area to its original state
             const uploadArea = document.getElementById('uploadArea');
             const fileInput = document.getElementById('fileInput');
+            const folderInput = document.getElementById('folderInput');
             
             if (uploadArea && fileInput) {
                 // Clear any stored file data
@@ -1102,6 +1239,17 @@
                 fileInput.value = '';
                 
                 console.log('Upload area reset, ready for new file selection');
+            } else if (uploadArea && folderInput) {
+                // Reset the upload area to original state for folder
+                uploadArea.innerHTML = `
+                    <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                    <p class="mb-2">Drag & drop screenshots here or click to browse</p>
+                    <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('folderInput').click()">
+                        Choose Folder
+                    </button>
+                `;
+                folderInput.value = '';
+                console.log('Upload area reset for folder, ready for new folder selection');
             } else {
                 console.error('Upload area or file input not found');
             }
@@ -1109,6 +1257,7 @@
 
         function debugFileInput() {
             const fileInput = document.getElementById('fileInput');
+            const folderInput = document.getElementById('folderInput');
             const uploadArea = document.getElementById('uploadArea');
 
             if (fileInput && uploadArea) {
@@ -1125,14 +1274,29 @@
                     console.log('No file selected in File Input.');
                     alert('No file selected in File Input.');
                 }
+            } else if (folderInput && uploadArea) {
+                console.log('Folder Input Element:', folderInput);
+                console.log('Folder Input Files:', folderInput.files);
+                console.log('Folder Input Files Length:', folderInput.files.length);
+                console.log('Upload Area Data-Selected-File:', uploadArea.getAttribute('data-selected-file'));
+
+                if (folderInput.files.length > 0) {
+                    const folder = folderInput.files[0];
+                    console.log('Selected Folder:', folder.name);
+                    alert(`Folder selected: ${folder.name}\nContains ${folder.files.length} files.`);
+                } else {
+                    console.log('No folder selected in Folder Input.');
+                    alert('No folder selected in Folder Input.');
+                }
             } else {
-                console.error('File Input or Upload Area not found.');
-                alert('File Input or Upload Area not found.');
+                console.error('File Input or Folder Input or Upload Area not found.');
+                alert('File Input or Folder Input or Upload Area not found.');
             }
         }
 
         function testFileInput() {
             const fileInput = document.getElementById('fileInput');
+            const folderInput = document.getElementById('folderInput');
             const uploadArea = document.getElementById('uploadArea');
 
             if (fileInput && uploadArea) {
@@ -1150,9 +1314,24 @@
                     console.log('No file selected in File Input for testing.');
                     alert('No file selected in File Input for testing.');
                 }
+            } else if (folderInput && uploadArea) {
+                console.log('Testing Folder Input State:');
+                console.log('Folder Input Element:', folderInput);
+                console.log('Folder Input Files:', folderInput.files);
+                console.log('Folder Input Files Length:', folderInput.files.length);
+                console.log('Upload Area Data-Selected-File:', uploadArea.getAttribute('data-selected-file'));
+
+                if (folderInput.files.length > 0) {
+                    const folder = folderInput.files[0];
+                    console.log('Selected Folder for Testing:', folder.name);
+                    alert(`Folder selected for testing: ${folder.name}\nContains ${folder.files.length} files.`);
+                } else {
+                    console.log('No folder selected in Folder Input for testing.');
+                    alert('No folder selected in Folder Input for testing.');
+                }
             } else {
-                console.error('File Input or Upload Area not found for testing.');
-                alert('File Input or Upload Area not found for testing.');
+                console.error('File Input or Folder Input or Upload Area not found for testing.');
+                alert('File Input or Folder Input or Upload Area not found for testing.');
             }
         }
 
