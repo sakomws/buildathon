@@ -689,7 +689,6 @@ def generate_all_screenshots():
             ("login_form.png", create_login_form, "Login form"),
             ("dashboard_charts.png", create_dashboard, "Dashboard with charts"),
             ("mobile_app.png", create_mobile_app, "Mobile app interface"),
-            ("dark_theme.png", create_dark_theme, "Dark theme editor"),
             ("404_page.png", create_404_page, "404 error page"),
             ("user_profile.png", create_user_profile, "User profile page"),
             ("ecommerce_product.png", create_ecommerce_product, "E-commerce product page"),

@@ -47,16 +47,24 @@ def init_search_engine():
     """Initialize the search engine."""
     global search_engine
     try:
+        logger.info("Initializing search engine...")
+        
         # Use test_screenshots directory if it exists, otherwise create uploads
         screenshots_dir = 'test_screenshots' if os.path.exists('test_screenshots') else 'uploads'
         if not os.path.exists(screenshots_dir):
             os.makedirs(screenshots_dir)
+            logger.info(f"Created directory: {screenshots_dir}")
         
+        logger.info(f"Using screenshots directory: {screenshots_dir}")
+        
+        # Initialize the search engine
         search_engine = VisualMemorySearch(screenshots_dir)
-        logger.info(f"Search engine initialized with directory: {screenshots_dir}")
+        logger.info(f"Search engine initialized successfully with directory: {screenshots_dir}")
         return True
+        
     except Exception as e:
         logger.error(f"Failed to initialize search engine: {e}")
+        search_engine = None
         return False
 
 @app.route('/')
@@ -172,18 +180,35 @@ def rebuild_index():
     global search_engine
     
     try:
-        if search_engine:
-            # Delete existing index files
+        logger.info("Starting index rebuild...")
+        
+        if search_engine is None:
+            flash('Search engine not initialized. Please refresh the page.', 'error')
+            return redirect(url_for('index'))
+        
+        # Delete existing index files
+        try:
             if search_engine.index_file.exists():
                 search_engine.index_file.unlink()
+                logger.info("Deleted old index file")
             if search_engine.embeddings_file.exists():
                 search_engine.embeddings_file.unlink()
-            
-            # Recreate index
+                logger.info("Deleted old embeddings file")
+        except Exception as e:
+            logger.error(f"Failed to delete old index files: {e}")
+            flash('Failed to delete old index files', 'error')
+            return redirect(url_for('index'))
+        
+        # Recreate index
+        try:
+            logger.info("Recreating search index...")
             search_engine._create_index()
+            logger.info("Index rebuilt successfully")
             flash('Search index rebuilt successfully!', 'success')
-        else:
-            flash('Search engine not initialized', 'error')
+        except Exception as e:
+            logger.error(f"Failed to recreate index: {e}")
+            flash(f'Failed to rebuild index: {str(e)}', 'error')
+            return redirect(url_for('index'))
         
         return redirect(url_for('index'))
         
@@ -223,25 +248,80 @@ def status():
             'message': str(e)
         })
 
+@app.route('/debug')
+def debug_info():
+    """Debug information for troubleshooting."""
+    try:
+        debug_data = {
+            'search_engine_initialized': search_engine is not None,
+            'current_directory': os.getcwd(),
+            'test_screenshots_exists': os.path.exists('test_screenshots'),
+            'uploads_exists': os.path.exists('uploads'),
+            'generate_test_dataset_exists': os.path.exists('generate_test_dataset.py'),
+            'main_py_exists': os.path.exists('main.py'),
+            'python_path': sys.path[:5],  # First 5 entries
+            'environment_vars': {
+                'OPENAI_API_KEY': 'SET' if os.getenv('OPENAI_API_KEY') else 'NOT SET',
+                'SECRET_KEY': 'SET' if os.getenv('SECRET_KEY') else 'NOT SET'
+            }
+        }
+        
+        if search_engine:
+            debug_data.update({
+                'screenshots_count': len(search_engine.screenshots_data) if search_engine.screenshots_data else 0,
+                'index_file_exists': search_engine.index_file.exists() if search_engine.index_file else False,
+                'embeddings_file_exists': search_engine.embeddings_file.exists() if search_engine.embeddings_file else False,
+                'use_openai': search_engine.use_openai
+            })
+        
+        return jsonify(debug_data)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/generate_test_data', methods=['POST'])
 def generate_test_data():
     """Generate test dataset."""
     try:
-        from generate_test_dataset import generate_all_screenshots
+        logger.info("Starting test data generation...")
+        
+        # Check if search engine is available
+        if search_engine is None:
+            flash('Search engine not initialized. Please refresh the page.', 'error')
+            return redirect(url_for('index'))
+        
+        # Import the function
+        try:
+            from generate_test_dataset import generate_all_screenshots
+            logger.info("Successfully imported generate_all_screenshots function")
+        except ImportError as e:
+            logger.error(f"Import error: {e}")
+            flash('Failed to import test data generator. Check the logs.', 'error')
+            return redirect(url_for('index'))
         
         # Generate test screenshots
+        logger.info("Calling generate_all_screenshots...")
         success_count = generate_all_screenshots()
+        logger.info(f"Generated {success_count} screenshots")
         
         if success_count > 0:
             # Rebuild index with new data
-            if search_engine:
+            try:
                 if search_engine.index_file.exists():
                     search_engine.index_file.unlink()
+                    logger.info("Deleted old index file")
                 if search_engine.embeddings_file.exists():
                     search_engine.embeddings_file.unlink()
+                    logger.info("Deleted old embeddings file")
+                
+                logger.info("Rebuilding search index...")
                 search_engine._create_index()
-            
-            flash(f'Generated {success_count} test screenshots and rebuilt index!', 'success')
+                logger.info("Index rebuilt successfully")
+                
+                flash(f'Generated {success_count} test screenshots and rebuilt index!', 'success')
+            except Exception as e:
+                logger.error(f"Index rebuild failed: {e}")
+                flash(f'Generated {success_count} screenshots but failed to rebuild index: {str(e)}', 'warning')
         else:
             flash('Failed to generate test screenshots', 'error')
         

@@ -163,11 +163,14 @@
                                     <i class="fas fa-sync"></i> Rebuild Index
                                 </button>
                             </form>
+                            <button type="button" class="btn btn-info w-100 mb-2" onclick="checkDebugInfo()">
+                                <i class="fas fa-bug"></i> Debug Info
+                            </button>
                         </div>
                         <div class="mt-3">
                             <small class="text-muted">
                                 <i class="fas fa-info-circle"></i> 
-                                Test data includes 12 diverse screenshot types for comprehensive testing.
+                                Test data includes 11 diverse screenshot types for comprehensive testing.
                             </small>
                         </div>
                     </div>
@@ -441,6 +444,16 @@
                 
                 statusIndicator.className = 'status-indicator status-warning';
                 statusText.textContent = 'Status check failed';
+            }
+        }
+
+        async function checkDebugInfo() {
+            try {
+                const response = await fetch('/debug');
+                const data = await response.json();
+                alert('Debug Info:\n' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                alert('Failed to fetch debug info: ' + error.message);
             }
         }
     </script>
