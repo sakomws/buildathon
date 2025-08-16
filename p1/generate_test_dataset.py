@@ -677,61 +677,78 @@ def create_weather_app():
     
     return img
 
+def generate_all_screenshots():
+    """Generate all test screenshots and return count of successful generations."""
+    try:
+        # Create test_screenshots directory if it doesn't exist
+        os.makedirs("test_screenshots", exist_ok=True)
+        
+        # Define all screenshots to generate
+        screenshots = [
+            ("error_auth.png", create_error_screenshot, "Authentication error page"),
+            ("login_form.png", create_login_form, "Login form"),
+            ("dashboard_charts.png", create_dashboard, "Dashboard with charts"),
+            ("mobile_app.png", create_mobile_app, "Mobile app interface"),
+            ("dark_theme.png", create_dark_theme, "Dark theme editor"),
+            ("404_page.png", create_404_page, "404 error page"),
+            ("user_profile.png", create_user_profile, "User profile page"),
+            ("ecommerce_product.png", create_ecommerce_product, "E-commerce product page"),
+            ("social_media_feed.png", create_social_media_feed, "Social media news feed"),
+            ("gaming_interface.png", create_gaming_interface, "Gaming interface"),
+            ("email_client.png", create_email_client, "Email client interface"),
+            ("weather_app.png", create_weather_app, "Weather app interface")
+        ]
+        
+        print("🎨 Generating test dataset...")
+        print(f"📁 Output directory: {os.path.abspath('test_screenshots')}")
+        print()
+        
+        success_count = 0
+        for filename, create_func, description in screenshots:
+            try:
+                print(f"🖼️  Creating {filename}...")
+                img = create_func()
+                filepath = os.path.join("test_screenshots", filename)
+                img.save(filepath, "PNG")
+                print(f"   ✅ Saved: {description}")
+                success_count += 1
+            except Exception as e:
+                print(f"   ❌ Error creating {filename}: {e}")
+        
+        print()
+        print("🎉 Test dataset generation complete!")
+        print(f"📊 Total screenshots generated: {success_count}")
+        
+        return success_count
+        
+    except Exception as e:
+        print(f"❌ Generation failed: {e}")
+        return 0
+
 def main():
     """Generate all test screenshots."""
-    # Create test_screenshots directory if it doesn't exist
-    os.makedirs("test_screenshots", exist_ok=True)
+    success_count = generate_all_screenshots()
     
-    # Define all screenshots to generate
-    screenshots = [
-        ("error_auth.png", create_error_screenshot, "Authentication error page"),
-        ("login_form.png", create_login_form, "Login form"),
-        ("dashboard_charts.png", create_dashboard, "Dashboard with charts"),
-        ("mobile_app.png", create_mobile_app, "Mobile app interface"),
-        ("dark_theme.png", create_dark_theme, "Dark theme editor"),
-        ("404_page.png", create_404_page, "404 error page"),
-        ("user_profile.png", create_user_profile, "User profile page"),
-        ("ecommerce_product.png", create_ecommerce_product, "E-commerce product page"),
-        ("social_media_feed.png", create_social_media_feed, "Social media news feed"),
-        ("gaming_interface.png", create_gaming_interface, "Gaming interface"),
-        ("email_client.png", create_email_client, "Email client interface"),
-        ("weather_app.png", create_weather_app, "Weather app interface")
-    ]
-    
-    print("🎨 Generating test dataset...")
-    print(f"📁 Output directory: {os.path.abspath('test_screenshots')}")
-    print()
-    
-    for filename, create_func, description in screenshots:
-        try:
-            print(f"🖼️  Creating {filename}...")
-            img = create_func()
-            filepath = os.path.join("test_screenshots", filename)
-            img.save(filepath, "PNG")
-            print(f"   ✅ Saved: {description}")
-        except Exception as e:
-            print(f"   ❌ Error creating {filename}: {e}")
-    
-    print()
-    print("🎉 Test dataset generation complete!")
-    print(f"📊 Total screenshots: {len(screenshots)}")
-    print()
-    print("🧪 Test queries you can try:")
-    print("   • 'blue button' - Find images with blue buttons")
-    print("   • 'login form' - Find authentication interfaces")
-    print("   • 'chart' - Find dashboard charts")
-    print("   • 'mobile app' - Find mobile interfaces")
-    print("   • 'dark theme' - Find dark themed interfaces")
-    print("   • 'error page' - Find error pages")
-    print("   • 'user profile' - Find profile interfaces")
-    print("   • 'shopping cart' - Find e-commerce elements")
-    print("   • 'social media' - Find social interfaces")
-    print("   • 'gaming' - Find game interfaces")
-    print("   • 'email' - Find email interfaces")
-    print("   • 'weather' - Find weather app elements")
-    print()
-    print("🚀 Run the search to test:")
-    print("   python main.py test_screenshots --query 'your search term'")
+    if success_count > 0:
+        print()
+        print("🧪 Test queries you can try:")
+        print("   • 'blue button' - Find images with blue buttons")
+        print("   • 'login form' - Find authentication interfaces")
+        print("   • 'chart' - Find dashboard charts")
+        print("   • 'mobile app' - Find mobile interfaces")
+        print("   • 'dark theme' - Find dark themed interfaces")
+        print("   • 'error page' - Find error pages")
+        print("   • 'user profile' - Find profile interfaces")
+        print("   • 'shopping cart' - Find e-commerce elements")
+        print("   • 'social media' - Find social interfaces")
+        print("   • 'gaming' - Find game interfaces")
+        print("   • 'email' - Find email interfaces")
+        print("   • 'weather' - Find weather app elements")
+        print()
+        print("🚀 Run the search to test:")
+        print("   python main.py test_screenshots --query 'your search term'")
+    else:
+        print("❌ No screenshots were generated successfully")
 
 if __name__ == "__main__":
     try:
