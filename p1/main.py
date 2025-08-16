@@ -310,8 +310,7 @@ class VisualMemorySearch:
             Provide the analysis in a structured, detailed format that captures every visual and functional aspect comprehensively. Be specific about locations, sizes, colors, and interactions to enable precise search matching. Include quantitative assessments where possible.
             """
 
-            response = openai.ChatCompletion.create(
-                model="gpt-4o",  # Best available model
+            response = self._call_openai_with_retry(
                 messages=[
                     {
                         "role": "user",
@@ -326,6 +325,7 @@ class VisualMemorySearch:
                         ]
                     }
                 ],
+                model="gpt-4o",  # Best available model
                 max_tokens=4000,  # Maximum tokens for comprehensive analysis
                 temperature=0.01,  # Minimal randomness for maximum consistency
                 top_p=0.99,       # Maximum focus and precision
@@ -333,6 +333,9 @@ class VisualMemorySearch:
                 presence_penalty=0.2,   # Enhanced to encourage comprehensive coverage
                 response_format={"type": "text"}  # Ensure text output
             )
+            
+            if response is None:
+                raise Exception("OpenAI API call failed after all retry attempts")
             
             return response.choices[0].message.content.strip()
             
@@ -1040,12 +1043,43 @@ class VisualMemorySearch:
             for data in self.screenshots_data
         ]
 
+    def _call_openai_with_retry(self, messages, max_retries=3, **kwargs):
+        """Call OpenAI API with retry mechanism for better reliability."""
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"OpenAI API call attempt {attempt + 1}/{max_retries}")
+                response = openai.ChatCompletion.create(messages=messages, **kwargs)
+                logger.info(f"OpenAI API call successful on attempt {attempt + 1}")
+                return response
+            except Exception as e:
+                logger.warning(f"OpenAI API call attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 2  # Exponential backoff: 2s, 4s, 8s
+                    logger.info(f"Waiting {wait_time} seconds before retry...")
+                    import time
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"All {max_retries} OpenAI API call attempts failed")
+                    raise e
+        
+        return None
+
     def _validate_results_with_openai(self, query: str, results: List[Dict]) -> List[Dict]:
         """Use OpenAI to validate search results and provide final confidence scores with maximum accuracy and limits."""
         logger.info(f"OpenAI validation check - use_openai: {self.use_openai}, client: {self.openai_client is not None}")
         
         if not self.use_openai or not self.openai_client:
             logger.info("OpenAI not available, skipping result validation")
+            # Ensure all results have fallback scores
+            for result in results:
+                result['final_score'] = result['confidence_score']
+                result['openai_score'] = None
+                result['openai_explanation'] = 'OpenAI not configured'
+                result['openai_tags'] = []
+                result['openai_confidence'] = 'none'
+                result['visual_match_details'] = 'Not available'
+                result['content_alignment'] = 'Not available'
+                result['quality_indicators'] = 'Not available'
             return results
         
         try:
@@ -1130,17 +1164,19 @@ class VisualMemorySearch:
             8. Provide specific, actionable insights for each result
             9. Consider edge cases and nuanced differences between results
             10. Maintain professional analytical standards throughout
+            11. You MUST include ALL {len(results)} results in your response
+            12. Double-check that your JSON is valid and complete
             """
             
             logger.info("Sending maximum accuracy validation request to OpenAI...")
             
             # Get OpenAI validation with maximum limits and best models for optimal accuracy
-            response = openai.ChatCompletion.create(
-                model="gpt-4o",  # Best available model for maximum accuracy
+            response = self._call_openai_with_retry(
                 messages=[
-                    {"role": "system", "content": "You are a world-class UI/UX expert and search relevance analyst. You must respond with valid JSON only and evaluate every result with maximum precision and comprehensive detail."},
+                    {"role": "system", "content": "You are a world-class UI/UX expert and search relevance analyst. You must respond with valid JSON only and evaluate every result with maximum precision and comprehensive detail. You MUST include ALL results in your response."},
                     {"role": "user", "content": validation_prompt}
                 ],
+                model="gpt-4o",  # Best available model for maximum accuracy
                 max_tokens=6000,  # Maximum tokens for comprehensive validation of all results
                 temperature=0.01,  # Minimal randomness for maximum consistency and accuracy
                 top_p=0.99,       # Maximum focus and precision
@@ -1150,13 +1186,47 @@ class VisualMemorySearch:
                 presence_penalty_scale=0.1  # Fine-tune presence penalty for better results
             )
             
+            if response is None:
+                raise Exception("OpenAI API call failed after all retry attempts")
+            
             logger.info("OpenAI response received, parsing maximum accuracy validation...")
             logger.info(f"Response content: {response.choices[0].message.content[:400]}...")
             
-            # Parse OpenAI response
+            # Parse OpenAI response with enhanced error handling
             try:
                 validation_data = json.loads(response.choices[0].message.content.strip())
                 logger.info(f"Parsed validation data: {len(validation_data.get('results', []))} results")
+                
+                # Validate that we have the expected number of results
+                expected_results = len(results)
+                actual_results = len(validation_data.get('results', []))
+                
+                if actual_results < expected_results:
+                    logger.warning(f"OpenAI returned {actual_results} results, expected {expected_results}. Attempting to generate missing scores...")
+                    
+                    # Generate fallback scores for missing results
+                    for i in range(expected_results):
+                        found = False
+                        for validation in validation_data.get('results', []):
+                            if validation.get('index') == i:
+                                found = True
+                                break
+                        
+                        if not found:
+                            # Create fallback validation for missing result
+                            fallback_score = max(0.1, results[i]['confidence_score'] * 0.8)  # Reasonable fallback
+                            fallback_validation = {
+                                "index": i,
+                                "relevance_score": fallback_score,
+                                "explanation": f"Fallback score generated for {results[i]['filename']} based on base confidence",
+                                "semantic_tags": results[i].get('semantic_tags', []),
+                                "confidence_level": "medium",
+                                "visual_match_details": "Fallback analysis based on base algorithm",
+                                "content_alignment": "Fallback assessment",
+                                "quality_indicators": "Fallback quality analysis"
+                            }
+                            validation_data['results'].append(fallback_validation)
+                            logger.info(f"Generated fallback validation for result {i}: {results[i]['filename']}")
                 
                 # Update results with comprehensive OpenAI validation
                 validated_count = 0
@@ -1185,47 +1255,77 @@ class VisualMemorySearch:
                 
                 logger.info(f"OpenAI validation completed: {validated_count}/{len(results)} results validated with maximum accuracy")
                 
-                # Ensure all results have final scores and comprehensive metadata
+                # Ensure ALL results have final scores and comprehensive metadata
                 for i, result in enumerate(results):
-                    if 'final_score' not in result:
-                        result['final_score'] = result['confidence_score']
-                        result['openai_score'] = None
-                        result['openai_explanation'] = 'Not validated by OpenAI'
-                        result['openai_tags'] = []
-                        result['openai_confidence'] = 'none'
-                        result['visual_match_details'] = 'Not available'
-                        result['content_alignment'] = 'Not available'
-                        result['quality_indicators'] = 'Not available'
-                        logger.warning(f"Result {i} ({result['filename']}) was not validated by OpenAI")
+                    if 'final_score' not in result or result['final_score'] is None:
+                        # Generate fallback scores for any missing results
+                        if 'openai_score' not in result or result['openai_score'] is None:
+                            # Create reasonable fallback OpenAI score
+                            fallback_openai_score = max(0.1, result['confidence_score'] * 0.8)
+                            result['openai_score'] = fallback_openai_score
+                            result['openai_explanation'] = f'Fallback score generated for {result["filename"]} based on base confidence'
+                            result['openai_tags'] = result.get('semantic_tags', [])
+                            result['openai_confidence'] = 'fallback'
+                            result['visual_match_details'] = 'Fallback analysis based on base algorithm'
+                            result['content_alignment'] = 'Fallback assessment'
+                            result['quality_indicators'] = 'Fallback quality analysis'
+                        
+                        # Calculate final score
+                        original_score = result['confidence_score']
+                        openai_score = result['openai_score']
+                        final_score = (original_score * 0.25) + (openai_score * 0.75)
+                        result['final_score'] = final_score
+                        
+                        logger.info(f"Generated fallback scores for result {i}: {result['filename']} - OpenAI: {openai_score:.3f}, Final: {final_score:.3f}")
                 
             except json.JSONDecodeError as e:
                 logger.warning(f"Failed to parse OpenAI response: {e}")
                 logger.warning(f"Raw response: {response.choices[0].message.content}")
-                # Fallback: use original scores
-                for result in results:
-                    result['final_score'] = result['confidence_score']
-                    result['openai_score'] = None
-                    result['openai_explanation'] = 'Validation failed - JSON parsing error'
-                    result['openai_tags'] = []
-                    result['openai_confidence'] = 'error'
-                    result['visual_match_details'] = 'Not available'
-                    result['content_alignment'] = 'Not available'
-                    result['quality_indicators'] = 'Not available'
+                
+                # Generate fallback scores for all results when parsing fails
+                logger.info("Generating fallback scores for all results due to parsing error...")
+                for i, result in enumerate(results):
+                    fallback_openai_score = max(0.1, result['confidence_score'] * 0.8)
+                    result['openai_score'] = fallback_openai_score
+                    result['openai_explanation'] = f'Fallback score generated for {result["filename"]} due to OpenAI parsing error'
+                    result['openai_tags'] = result.get('semantic_tags', [])
+                    result['openai_confidence'] = 'fallback_parse_error'
+                    result['visual_match_details'] = 'Fallback analysis due to parsing error'
+                    result['content_alignment'] = 'Fallback assessment'
+                    result['quality_indicators'] = 'Fallback quality analysis'
+                    
+                    # Calculate final score
+                    original_score = result['confidence_score']
+                    openai_score = result['openai_score']
+                    final_score = (original_score * 0.25) + (openai_score * 0.75)
+                    result['final_score'] = final_score
+                    
+                    logger.info(f"Generated fallback scores for result {i}: {result['filename']} - OpenAI: {openai_score:.3f}, Final: {final_score:.3f}")
             
             return results
             
         except Exception as e:
             logger.error(f"OpenAI validation failed: {e}")
-            # Fallback: use original scores
-            for result in results:
-                result['final_score'] = result['confidence_score']
-                result['openai_score'] = None
-                result['openai_explanation'] = 'Validation failed - API error'
-                result['openai_tags'] = []
-                result['openai_confidence'] = 'error'
-                result['visual_match_details'] = 'Not available'
-                result['content_alignment'] = 'Not available'
-                result['quality_indicators'] = 'Not available'
+            logger.info("Generating fallback scores for all results due to API error...")
+            
+            # Generate fallback scores for all results when API fails
+            for i, result in enumerate(results):
+                fallback_openai_score = max(0.1, result['confidence_score'] * 0.8)
+                result['openai_score'] = fallback_openai_score
+                result['openai_explanation'] = f'Fallback score generated for {result["filename"]} due to OpenAI API error'
+                result['openai_tags'] = result.get('semantic_tags', [])
+                result['openai_confidence'] = 'fallback_api_error'
+                result['visual_match_details'] = 'Fallback analysis due to API error'
+                result['content_alignment'] = 'Fallback assessment'
+                result['quality_indicators'] = 'Fallback quality analysis'
+                
+                # Calculate final score
+                original_score = result['confidence_score']
+                openai_score = result['openai_score']
+                final_score = (original_score * 0.25) + (openai_score * 0.75)
+                result['final_score'] = final_score
+                
+                logger.info(f"Generated fallback scores for result {i}: {result['filename']} - OpenAI: {fallback_openai_score:.3f}, Final: {final_score:.3f}")
             
             return results
 
