@@ -172,7 +172,7 @@ class VisualMemorySearch:
             logger.info(f"Index created with {len(self.screenshots_data)} screenshots")
     
     def _process_screenshot(self, file_path: Path) -> Optional[Dict]:
-        """Process a single screenshot to extract text and visual information."""
+        """Process a single screenshot to extract text and visual information with enhanced blue button detection."""
         try:
             # Load image
             image = Image.open(file_path)
@@ -183,6 +183,9 @@ class VisualMemorySearch:
             # Generate visual description
             visual_description = self._generate_visual_description(file_path, image)
             
+            # Enhanced blue button detection
+            blue_button_info = self._detect_blue_buttons_enhanced(file_path)
+            
             # Create screenshot data
             screenshot_data = {
                 "file_path": str(file_path),
@@ -190,8 +193,13 @@ class VisualMemorySearch:
                 "ocr_text": ocr_text,
                 "visual_description": visual_description,
                 "file_size": file_path.stat().st_size,
-                "dimensions": image.size
+                "dimensions": image.size,
+                "blue_button_detected": blue_button_info['detected'],
+                "blue_button_count": blue_button_info['count'],
+                "blue_button_details": blue_button_info['details']
             }
+            
+            logger.info(f"Processed {file_path.name}: blue_button={blue_button_info['detected']}, count={blue_button_info['count']}")
             
             return screenshot_data
             
@@ -819,10 +827,15 @@ class VisualMemorySearch:
         if 'blue' in query_lower and 'button' in query_lower:
             enhanced += " blue button user interface element interactive component"
             enhanced += " visual appearance color blue button design"
+            enhanced += " clickable element blue colored button"
+            enhanced += " UI component blue button interface"
+            enhanced += " interactive blue button element"
         elif 'blue' in query_lower:
             enhanced += " visual appearance color blue theme design"
+            enhanced += " blue colored elements interface"
         elif 'button' in query_lower:
             enhanced += " user interface element interactive component button design"
+            enhanced += " clickable element button interface"
         
         # Add visual context for color queries
         if any(color in query_lower for color in ['red', 'green', 'yellow', 'purple', 'orange', 'pink', 'brown', 'gray', 'black', 'white']):
@@ -840,16 +853,39 @@ class VisualMemorySearch:
         if any(word in query_lower for word in ['ui', 'ux', 'interface']):
             enhanced += " user interface design user experience"
         
+        # Add interactive context for button queries
+        if 'button' in query_lower:
+            enhanced += " interactive clickable element"
+            enhanced += " user interface component"
+        
+        logger.info(f"Enhanced query: '{query}' -> '{enhanced}'")
         return enhanced
     
     def _boost_visual_matches(self, query: str, similarities: np.ndarray) -> np.ndarray:
-        """Boost similarity scores for visual matches with enhanced accuracy."""
+        """Boost similarity scores for visual matches with enhanced accuracy for blue buttons."""
         query_lower = query.lower()
         boosted = similarities.copy()
         
         # Normalize base similarities to 0-1 range
         if np.max(boosted) > 0:
             boosted = (boosted - np.min(boosted)) / (np.max(boosted) - np.min(boosted))
+        
+        # Special boost for blue button queries
+        if 'blue' in query_lower and 'button' in query_lower:
+            logger.info("Applying enhanced blue button boost...")
+            for i, data in enumerate(self.screenshots_data):
+                if data.get('blue_button_detected'):
+                    blue_count = data.get('blue_button_count', 0)
+                    blue_percentage = data.get('blue_percentage', 0)
+                    
+                    # Significant boost for confirmed blue buttons
+                    if blue_count > 0:
+                        boost_factor = 3.0 + (blue_count * 0.5)  # Base 3x + 0.5x per button
+                        boosted[i] *= boost_factor
+                        logger.info(f"Blue button boost applied to {data['filename']}: {boost_factor}x (count: {blue_count})")
+                    elif blue_percentage > 5:  # High blue content
+                        boosted[i] *= 2.5
+                        logger.info(f"High blue content boost applied to {data['filename']}: 2.5x ({blue_percentage:.1f}% blue)")
         
         # Enhanced color matching with more precise detection
         if any(color in query_lower for color in ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'brown', 'gray', 'black', 'white']):
@@ -1414,6 +1450,152 @@ class VisualMemorySearch:
                 logger.info(f"Generated fallback scores for result {i}: {result['filename']} - OpenAI: {fallback_openai_score:.3f}, Final: {final_score:.3f}")
             
             return results
+
+    def _detect_blue_buttons_enhanced(self, file_path: Path) -> Dict:
+        """Enhanced blue button detection using multiple techniques."""
+        try:
+            # Read image
+            image = cv2.imread(str(file_path))
+            if image is None:
+                return {'detected': False, 'count': 0, 'details': 'Failed to read image'}
+            
+            # Convert to different color spaces
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+            rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            
+            # Multiple blue detection ranges for better accuracy
+            blue_ranges = [
+                # Standard blue ranges
+                ([100, 80, 80], [130, 255, 255]),      # Standard blue
+                ([110, 70, 70], [140, 255, 255]),      # Lighter blue
+                ([90, 90, 90], [120, 255, 255]),       # Darker blue
+                ([100, 60, 60], [130, 255, 200]),      # Desaturated blue
+                # Extended ranges for better coverage
+                ([95, 50, 50], [135, 255, 255]),       # Wider blue range
+                ([105, 40, 40], [125, 255, 180]),      # Lower saturation threshold
+            ]
+            
+            blue_pixels_total = 0
+            total_pixels = hsv.shape[0] * hsv.shape[1]
+            
+            # Check all blue ranges
+            for lower, upper in blue_ranges:
+                lower = np.array(lower)
+                upper = np.array(upper)
+                mask = cv2.inRange(hsv, lower, upper)
+                blue_pixels = cv2.countNonZero(mask)
+                blue_pixels_total += blue_pixels
+            
+            blue_percentage = (blue_pixels_total / total_pixels) * 100
+            
+            # Enhanced button detection
+            buttons = self._detect_buttons_enhanced(image)
+            blue_buttons = []
+            
+            # Check each detected button for blue content
+            for button in buttons:
+                x, y, w, h = button['bbox']
+                roi = hsv[y:y+h, x:x+w]
+                
+                # Check if ROI contains significant blue
+                blue_mask = cv2.inRange(roi, np.array([100, 60, 60]), np.array([130, 255, 255]))
+                roi_blue_pixels = cv2.countNonZero(blue_mask)
+                roi_pixels = roi.shape[0] * roi.shape[1]
+                roi_blue_percentage = (roi_blue_pixels / roi_pixels) * 100
+                
+                if roi_blue_percentage > 15:  # 15% blue threshold for button
+                    blue_buttons.append({
+                        'bbox': button['bbox'],
+                        'blue_percentage': roi_blue_percentage,
+                        'confidence': button['confidence']
+                    })
+            
+            # Determine if blue buttons are detected
+            detected = len(blue_buttons) > 0 or blue_percentage > 3
+            
+            details = f"Blue pixels: {blue_percentage:.1f}%, Buttons: {len(buttons)}, Blue buttons: {len(blue_buttons)}"
+            
+            if blue_buttons:
+                details += f" - Locations: {[f'({b["bbox"][0]},{b["bbox"][1]})' for b in blue_buttons]}"
+            
+            logger.info(f"Blue button detection for {file_path.name}: {details}")
+            
+            return {
+                'detected': detected,
+                'count': len(blue_buttons),
+                'details': details,
+                'blue_percentage': blue_percentage,
+                'total_buttons': len(buttons),
+                'blue_buttons': blue_buttons
+            }
+            
+        except Exception as e:
+            logger.error(f"Enhanced blue button detection failed for {file_path}: {e}")
+            return {'detected': False, 'count': 0, 'details': f'Detection failed: {e}'}
+    
+    def _detect_buttons_enhanced(self, image: np.ndarray) -> List[Dict]:
+        """Enhanced button detection with better accuracy."""
+        try:
+            buttons = []
+            
+            # Convert to grayscale
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # Multiple edge detection methods
+            edges1 = cv2.Canny(gray, 30, 100)
+            edges2 = cv2.Canny(gray, 50, 150)
+            edges3 = cv2.Canny(gray, 20, 80)
+            
+            # Combine edge detections
+            edges = cv2.bitwise_or(edges1, cv2.bitwise_or(edges2, edges3))
+            
+            # Find contours
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for contour in contours:
+                # Approximate contour to polygon
+                epsilon = 0.02 * cv2.arcLength(contour, True)
+                approx = cv2.approxPolyDP(contour, epsilon, True)
+                
+                # Check if it's roughly rectangular (4-6 points)
+                if len(approx) >= 4 and len(approx) <= 6:
+                    # Get bounding rectangle
+                    x, y, w, h = cv2.boundingRect(contour)
+                    
+                    # Check if it's button-sized
+                    if 30 <= w <= 400 and 20 <= h <= 120:
+                        # Check if it's not just the image border
+                        img_h, img_w = image.shape[:2]
+                        if x > 5 and y > 5 and x + w < img_w - 5 and y + h < img_h - 5:
+                            
+                            # Calculate confidence based on shape regularity
+                            area = cv2.contourArea(contour)
+                            perimeter = cv2.arcLength(contour, True)
+                            if perimeter > 0:
+                                circularity = 4 * np.pi * area / (perimeter * perimeter)
+                                confidence = 1.0 - abs(circularity - 0.785)  # 0.785 is ideal rectangle
+                            else:
+                                confidence = 0.5
+                            
+                            # Check aspect ratio
+                            aspect_ratio = w / h
+                            if 0.5 <= aspect_ratio <= 4.0:  # Reasonable button proportions
+                                buttons.append({
+                                    'bbox': (x, y, w, h),
+                                    'confidence': confidence,
+                                    'area': area,
+                                    'aspect_ratio': aspect_ratio
+                                })
+            
+            # Sort by confidence
+            buttons.sort(key=lambda x: x['confidence'], reverse=True)
+            
+            # Limit to top buttons
+            return buttons[:10]
+            
+        except Exception as e:
+            logger.error(f"Enhanced button detection failed: {e}")
+            return []
 
 def main():
     """Main function to run the visual memory search application."""
