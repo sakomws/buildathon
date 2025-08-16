@@ -325,6 +325,10 @@
             const uploadArea = document.getElementById('uploadArea');
             const fileInput = document.getElementById('fileInput');
 
+            console.log('Setting up file upload...');
+            console.log('Upload area:', uploadArea);
+            console.log('File input:', fileInput);
+
             // Drag and drop
             uploadArea.addEventListener('dragover', (e) => {
                 e.preventDefault();
@@ -340,6 +344,7 @@
                 uploadArea.classList.remove('dragover');
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
+                    console.log('File dropped:', files[0].name);
                     fileInput.files = files;
                     showFilePreview(files[0]);
                 }
@@ -387,7 +392,7 @@
                         <img src="${e.target.result}" class="img-fluid mb-3" style="max-height: 150px; object-fit: contain; border-radius: 8px; border: 1px solid #dee2e6;">
                         <p class="mb-2">Selected: <strong>${file.name}</strong></p>
                         <p class="small text-muted mb-2">Size: ${(file.size / 1024).toFixed(1)} KB</p>
-                        <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
+                        <button type="button" class="btn btn-outline-primary" onclick="changeFile()">
                             Change File
                         </button>
                     `;
@@ -407,7 +412,7 @@
                     <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
                     <p class="mb-2">Invalid file type: <strong>${file.name}</strong></p>
                     <p class="small text-muted mb-2">Please select an image file (PNG, JPG, JPEG, GIF, BMP)</p>
-                    <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
+                    <button type="button" class="btn btn-outline-primary" onclick="changeFile()">
                         Choose Another File
                     </button>
                 `;
@@ -578,6 +583,35 @@
                 alert('Debug Info:\n' + JSON.stringify(data, null, 2));
             } catch (error) {
                 alert('Failed to fetch debug info: ' + error.message);
+            }
+        }
+
+        function changeFile() {
+            console.log('Change file button clicked');
+            
+            // Reset the upload area to its original state
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            
+            if (uploadArea && fileInput) {
+                // Clear any stored file data
+                uploadArea.removeAttribute('data-selected-file');
+                
+                // Reset the upload area to original state
+                uploadArea.innerHTML = `
+                    <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                    <p class="mb-2">Drag & drop screenshots here or click to browse</p>
+                    <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
+                        Choose File
+                    </button>
+                `;
+                
+                // Clear the file input
+                fileInput.value = '';
+                
+                console.log('Upload area reset, ready for new file selection');
+            } else {
+                console.error('Upload area or file input not found');
             }
         }
 
