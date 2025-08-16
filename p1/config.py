@@ -9,7 +9,7 @@ from pathlib import Path
 # OpenAI Configuration
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 OPENAI_MODEL = "gpt-4-vision-preview"
-OPENAI_MAX_TOKENS = 300
+OPENAI_MAX_TOKENS = 2000
 OPENAI_TEMPERATURE = 0.1
 
 # Search Configuration
@@ -18,7 +18,7 @@ MIN_CONFIDENCE_THRESHOLD = 0.1
 MAX_CONFIDENCE_THRESHOLD = 1.0
 
 # Image Processing
-MAX_IMAGE_SIZE = 1024  # OpenAI supports larger images
+MAX_IMAGE_SIZE = 2048  # OpenAI supports larger images
 SUPPORTED_FORMATS = ['.png', '.jpg', '.jpeg']
 
 # UI Detection

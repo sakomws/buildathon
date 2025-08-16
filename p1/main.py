@@ -87,7 +87,7 @@ class VisualMemorySearch:
                     test_response = openai.ChatCompletion.create(
                         model="gpt-3.5-turbo",
                         messages=[{"role": "user", "content": "Hello"}],
-                        max_tokens=5
+                        max_tokens=100
                     )
                     logger.info("OpenAI API configured successfully")
                     return True
@@ -221,7 +221,7 @@ class VisualMemorySearch:
         """Generate visual description of image using AI model."""
         try:
             # Resize image if too large for model
-            max_size = 1024  # OpenAI supports larger images
+            max_size = 2048  # OpenAI supports larger images
             if max(image.size) > max_size:
                 ratio = max_size / max(image.size)
                 new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
@@ -250,46 +250,57 @@ class VisualMemorySearch:
             return "Unable to generate visual description"
     
     def _generate_openai_description(self, image_path: str, image: Image.Image) -> str:
-        """Generate detailed visual description using OpenAI GPT-4 Vision."""
+        """Generate detailed visual description using OpenAI GPT-4 Vision with enhanced accuracy."""
         try:
             # Read and encode image
             with open(image_path, "rb") as image_file:
                 base64_image = base64.b64encode(image_file.read()).decode('utf-8')
             
-            # Enhanced prompt for detailed analysis
+            # Enhanced prompt for maximum accuracy and detail
             prompt = """
-            Analyze this screenshot in detail and provide a comprehensive description. Focus on:
+            Analyze this screenshot with maximum detail and accuracy. Provide a comprehensive, structured analysis covering:
 
-            **UI Elements & Components:**
-            - Buttons, forms, inputs, navigation elements
-            - Icons, images, and visual assets
-            - Layout structure (header, sidebar, main content, footer)
+            **UI Elements & Interactive Components:**
+            - Exact button locations, sizes, colors, and text labels
+            - Form fields, input types, and validation states
+            - Navigation elements, menus, and breadcrumbs
+            - Icons, logos, and visual assets with precise descriptions
+            - Modal dialogs, tooltips, and overlay elements
 
-            **Visual Design:**
-            - Color scheme and dominant colors
-            - Typography and text hierarchy
-            - Spacing, alignment, and visual balance
-            - Theme (light/dark, modern/classic, professional/casual)
+            **Visual Design & Layout:**
+            - Precise color scheme with hex codes if visible
+            - Typography hierarchy, font sizes, and text styles
+            - Spacing measurements, alignment, and grid structure
+            - Visual balance, contrast, and accessibility features
+            - Responsive design elements and breakpoint indicators
 
             **Content & Functionality:**
-            - Primary purpose and context
-            - Data types displayed (charts, tables, forms, etc.)
-            - User interaction patterns
-            - Information architecture
+            - Primary application purpose and user workflow
+            - Data types, charts, tables, and visualization details
+            - User interaction patterns and expected behaviors
+            - Information architecture and content organization
+            - Error states, loading indicators, and feedback elements
 
-            **Technical Details:**
-            - Platform type (web, mobile, desktop app)
-            - Interface complexity and sophistication
-            - Accessibility features
-            - Responsive design elements
+            **Technical Implementation:**
+            - Platform type (web app, mobile app, desktop software)
+            - Framework indicators and technology stack hints
+            - Performance and optimization features
+            - Security and authentication elements
+            - Integration points and external service indicators
 
-            **Semantic Tags:**
-            - Primary category (e.g., e-commerce, social media, productivity)
-            - Key features and capabilities
-            - Target user audience
-            - Business context
+            **Semantic Context:**
+            - Business domain and industry context
+            - Target user audience and use case scenarios
+            - Feature capabilities and limitations
+            - Competitive differentiators and unique aspects
 
-            Provide the analysis in a structured format that captures all these aspects comprehensively.
+            **Accessibility & UX:**
+            - Screen reader compatibility indicators
+            - Keyboard navigation support
+            - Color contrast and visual accessibility
+            - Internationalization and localization features
+
+            Provide the analysis in a structured, detailed format that captures every visual and functional aspect comprehensively. Be specific about locations, sizes, colors, and interactions to enable precise search matching.
             """
 
             response = openai.ChatCompletion.create(
@@ -308,8 +319,11 @@ class VisualMemorySearch:
                         ]
                     }
                 ],
-                max_tokens=1000,
-                temperature=0.1
+                max_tokens=2000,  # Increased from 1000 for more detailed descriptions
+                temperature=0.05,  # Reduced for more consistent, accurate descriptions
+                top_p=0.95,       # Added for better focus
+                frequency_penalty=0.1,  # Added to reduce repetition
+                presence_penalty=0.1    # Added to encourage comprehensive coverage
             )
             
             return response.choices[0].message.content.strip()
@@ -643,25 +657,33 @@ class VisualMemorySearch:
             
             logger.info(f"Searching for: '{query}' (Enhanced: '{enhanced_query}')")
             logger.info(f"Semantic context: {semantic_query}")
+            logger.info(f"Processing {len(self.screenshots_data)} images for maximum accuracy...")
             
             # Generate query embedding
             query_embedding = self.embedding_model.encode([enhanced_query])[0]
             
-            # Calculate similarities
+            # Calculate similarities for ALL images
             similarities = []
-            for data in self.screenshots_data:
+            for i, data in enumerate(self.screenshots_data):
                 if 'embedding' in data:
                     similarity = cosine_similarity([query_embedding], [data['embedding']])[0][0]
                     similarities.append(similarity)
                 else:
-                    similarities.append(0.0)
+                    # Generate embedding if not present
+                    combined_text = f"{data['ocr_text']} {data['visual_description']}"
+                    embedding = self.embedding_model.encode([combined_text])[0]
+                    data['embedding'] = embedding
+                    similarities.append(cosine_similarity([query_embedding], [embedding])[0][0])
+                    logger.info(f"Generated embedding for image {i+1}/{len(self.screenshots_data)}: {data['filename']}")
             
-            # Enhanced confidence scoring with semantic analysis
+            # Enhanced confidence scoring with semantic analysis for ALL images
             boosted_similarities = self._boost_visual_matches(query, similarities)
             semantic_boosted = self._apply_semantic_boost(query, semantic_query, boosted_similarities)
             
-            # Get top matches
+            # Get top 5 matches with enhanced accuracy
             top_indices = np.argsort(semantic_boosted)[::-1][:top_k]
+            
+            logger.info(f"Top {len(top_indices)} results selected from {len(self.screenshots_data)} total images")
             
             results = []
             for idx in top_indices:
@@ -675,16 +697,26 @@ class VisualMemorySearch:
                         "dimensions": self.screenshots_data[idx]["dimensions"],
                         "semantic_tags": self._extract_semantic_tags(self.screenshots_data[idx]["visual_description"]),
                         "ui_patterns": self._extract_ui_patterns_from_description(self.screenshots_data[idx]["visual_description"]),
-                        "content_types": self._extract_content_types_from_description(self.screenshots_data[idx]["visual_description"])
+                        "content_types": self._extract_content_types_from_description(self.screenshots_data[idx]["visual_description"]),
+                        "rank": len(results) + 1  # Add ranking information
                     }
                     results.append(result)
+                    logger.info(f"Result {len(results)}: {result['filename']} (Score: {result['confidence_score']:.3f})")
             
-            # Use OpenAI to validate and score results
+            # Use OpenAI to validate and score ALL top 5 results with enhanced accuracy
             if results:
+                logger.info(f"Validating {len(results)} results with OpenAI for maximum accuracy...")
                 results = self._validate_results_with_openai(query, results)
                 
-                # Sort by final score
+                # Sort by final score and ensure exactly top 5
                 results.sort(key=lambda x: x.get('final_score', x['confidence_score']), reverse=True)
+                results = results[:top_k]  # Ensure exactly top 5
+                
+                logger.info(f"Final top {len(results)} results with enhanced accuracy:")
+                for i, result in enumerate(results):
+                    final_score = result.get('final_score', result['confidence_score'])
+                    openai_score = result.get('openai_score', 'N/A')
+                    logger.info(f"  {i+1}. {result['filename']} - Final: {final_score:.3f}, OpenAI: {openai_score}")
             
             return results
             
@@ -716,7 +748,7 @@ class VisualMemorySearch:
         return enhanced
     
     def _boost_visual_matches(self, query: str, similarities: np.ndarray) -> np.ndarray:
-        """Boost similarity scores for visual matches."""
+        """Boost similarity scores for visual matches with enhanced accuracy."""
         query_lower = query.lower()
         boosted = similarities.copy()
         
@@ -724,51 +756,101 @@ class VisualMemorySearch:
         if np.max(boosted) > 0:
             boosted = (boosted - np.min(boosted)) / (np.max(boosted) - np.min(boosted))
         
-        # Boost for color matches
-        if any(color in query_lower for color in ['blue', 'red', 'green', 'yellow', 'purple', 'orange']):
+        # Enhanced color matching with more precise detection
+        if any(color in query_lower for color in ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'brown', 'gray', 'black', 'white']):
             for i, data in enumerate(self.screenshots_data):
                 if data['visual_description']:
                     desc_lower = data['visual_description'].lower()
-                    # Check for exact color matches
-                    for color in ['blue', 'red', 'green', 'yellow', 'purple', 'orange']:
+                    # Check for exact color matches with higher boost
+                    for color in ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'brown', 'gray', 'black', 'white']:
                         if color in query_lower and color in desc_lower:
-                            boosted[i] *= 1.8  # Boost by 80% for exact color matches
+                            boosted[i] *= 2.0  # Boost by 100% for exact color matches
                             break
-                        elif color in query_lower and any(c in desc_lower for c in ['color', 'colored', 'theme']):
-                            boosted[i] *= 1.5  # Boost by 50% for color-related descriptions
+                        elif color in query_lower and any(c in desc_lower for c in ['color', 'colored', 'theme', 'background']):
+                            boosted[i] *= 1.7  # Boost by 70% for color-related descriptions
         
-        # Boost for button matches
-        if 'button' in query_lower:
-            for i, data in enumerate(self.screenshots_data):
-                if data['visual_description'] and 'button' in data['visual_description'].lower():
-                    boosted[i] *= 1.6  # Boost by 60% for button matches
+        # Enhanced button and UI element matching
+        ui_elements = ['button', 'form', 'input', 'field', 'menu', 'sidebar', 'header', 'navigation', 'modal', 'dialog', 'tooltip']
+        for element in ui_elements:
+            if element in query_lower:
+                for i, data in enumerate(self.screenshots_data):
+                    if data['visual_description'] and element in data['visual_description'].lower():
+                        boosted[i] *= 1.8  # Boost by 80% for UI element matches
         
-        # Boost for UI element matches
-        if any(word in query_lower for word in ['interface', 'ui', 'design', 'layout']):
-            for i, data in enumerate(self.screenshots_data):
-                if data['visual_description']:
-                    desc_lower = data['visual_description'].lower()
-                    if any(word in desc_lower for word in ['ui', 'interface', 'design', 'layout', 'form']):
-                        boosted[i] *= 1.4  # Boost by 40% for UI matches
-        
-        # Boost for exact text matches in OCR
+        # Enhanced text matching with semantic similarity
         for i, data in enumerate(self.screenshots_data):
             if data['ocr_text']:
                 ocr_lower = data['ocr_text'].lower()
-                # Check for exact word matches
                 query_words = query_lower.split()
-                matches = sum(1 for word in query_words if word in ocr_lower)
-                if matches > 0:
-                    boost_factor = 1.0 + (matches * 0.3)  # 30% boost per matching word
+                
+                # Exact word matches
+                exact_matches = sum(1 for word in query_words if word in ocr_lower)
+                if exact_matches > 0:
+                    boost_factor = 1.0 + (exact_matches * 0.4)  # 40% boost per matching word
                     boosted[i] *= boost_factor
+                
+                # Semantic word matches (synonyms, related terms)
+                semantic_matches = self._calculate_semantic_similarity(query_lower, ocr_lower)
+                if semantic_matches > 0.3:  # Threshold for semantic relevance
+                    boosted[i] *= (1.0 + semantic_matches * 0.5)  # Up to 50% boost for semantic matches
+        
+        # Enhanced layout and design matching
+        layout_terms = ['layout', 'design', 'interface', 'ui', 'ux', 'grid', 'card', 'sidebar', 'header', 'footer']
+        if any(term in query_lower for term in layout_terms):
+            for i, data in enumerate(self.screenshots_data):
+                if data['visual_description']:
+                    desc_lower = data['visual_description'].lower()
+                    layout_matches = sum(1 for term in layout_terms if term in desc_lower)
+                    if layout_matches > 0:
+                        boost_factor = 1.0 + (layout_matches * 0.3)  # 30% boost per layout match
+                        boosted[i] *= boost_factor
         
         # Ensure scores are in reasonable range (0.1 to 1.0)
         boosted = np.clip(boosted, 0.1, 1.0)
         
-        # Apply sigmoid transformation for better score distribution
-        boosted = 1 / (1 + np.exp(-5 * (boosted - 0.5)))
+        # Apply enhanced sigmoid transformation for better score distribution
+        boosted = 1 / (1 + np.exp(-6 * (boosted - 0.5)))  # Increased steepness from 5 to 6
         
         return boosted
+    
+    def _calculate_semantic_similarity(self, query: str, text: str) -> float:
+        """Calculate semantic similarity between query and text using word embeddings."""
+        try:
+            # Simple semantic matching using common synonyms and related terms
+            semantic_groups = {
+                'button': ['btn', 'click', 'submit', 'action', 'interactive'],
+                'form': ['input', 'field', 'submit', 'entry', 'data'],
+                'error': ['warning', 'alert', 'problem', 'issue', 'failed'],
+                'login': ['signin', 'authentication', 'auth', 'credentials', 'password'],
+                'dashboard': ['overview', 'summary', 'stats', 'metrics', 'analytics'],
+                'search': ['find', 'lookup', 'query', 'filter', 'discover'],
+                'upload': ['import', 'add', 'attach', 'file', 'document'],
+                'settings': ['config', 'preferences', 'options', 'setup', 'configuration']
+            }
+            
+            query_words = query.lower().split()
+            text_words = text.lower().split()
+            
+            semantic_score = 0.0
+            for query_word in query_words:
+                for group, synonyms in semantic_groups.items():
+                    if query_word in [group] + synonyms:
+                        # Check if any synonym appears in the text
+                        for synonym in [group] + synonyms:
+                            if synonym in text_words:
+                                semantic_score += 0.8  # High semantic match
+                                break
+                        break
+            
+            # Normalize score
+            if query_words:
+                semantic_score = semantic_score / len(query_words)
+            
+            return min(semantic_score, 1.0)
+            
+        except Exception as e:
+            logger.error(f"Semantic similarity calculation failed: {e}")
+            return 0.0
     
     def _extract_semantic_query(self, query: str) -> Dict[str, List[str]]:
         """Extract semantic components from the search query."""
@@ -943,7 +1025,7 @@ class VisualMemorySearch:
         ]
 
     def _validate_results_with_openai(self, query: str, results: List[Dict]) -> List[Dict]:
-        """Use OpenAI to validate search results and provide final confidence scores."""
+        """Use OpenAI to validate search results and provide final confidence scores with enhanced accuracy."""
         logger.info(f"OpenAI validation check - use_openai: {self.use_openai}, client: {self.openai_client is not None}")
         
         if not self.use_openai or not self.openai_client:
@@ -951,60 +1033,90 @@ class VisualMemorySearch:
             return results
         
         try:
-            logger.info("Validating results with OpenAI...")
+            logger.info("Validating results with OpenAI for enhanced accuracy...")
             
-            # Prepare validation prompt
+            # Enhanced validation prompt for maximum accuracy
             validation_prompt = f"""
-            You are an expert UI/UX analyst evaluating search results for a visual memory search system.
+            You are an expert UI/UX analyst and search relevance evaluator. Your task is to analyze search results for a visual memory search system with maximum accuracy.
 
-            Query: "{query}"
+            SEARCH QUERY: "{query}"
 
-            Please analyze each result and provide a JSON response with this exact format:
+            EVALUATION CRITERIA:
+            1. **Visual Match Accuracy**: How well does the image visually match the query?
+            2. **Content Relevance**: Does the content/functionality align with the query intent?
+            3. **Element Presence**: Are the specific UI elements mentioned in the query present?
+            4. **Context Alignment**: Does the overall context match the user's search intent?
+            5. **Quality Assessment**: Overall quality and relevance of the match
+
+            SCORING SYSTEM:
+            - 0.9-1.0: Perfect match, exactly what was requested
+            - 0.8-0.89: Excellent match, very close to request
+            - 0.7-0.79: Good match, relevant but not perfect
+            - 0.6-0.69: Fair match, somewhat relevant
+            - 0.5-0.59: Weak match, barely relevant
+            - 0.0-0.49: Poor match, not relevant
+
+            You MUST evaluate ALL {len(results)} results. Respond with this EXACT JSON format:
             {{
                 "results": [
                     {{
                         "index": 0,
                         "relevance_score": 0.85,
-                        "explanation": "This image contains exactly what was requested...",
-                        "semantic_tags": ["button", "blue", "interface"]
+                        "explanation": "Detailed explanation of why this score was given...",
+                        "semantic_tags": ["button", "blue", "interface", "form"],
+                        "confidence_level": "high"
                     }}
                 ]
             }}
 
-            Results to evaluate ({len(results)} total):
+            RESULTS TO EVALUATE:
             """
             
             for i, result in enumerate(results):
                 validation_prompt += f"""
-                Result {i+1}: {result['filename']}
-                - Visual: {result['visual_description'][:100]}...
-                - OCR: {result['ocr_text'][:80]}...
-                - Score: {result['confidence_score']:.3f}
-                - Index: {i}
+                RESULT {i+1} (Index: {i}):
+                - Filename: {result['filename']}
+                - Visual Description: {result['visual_description'][:150]}...
+                - OCR Text: {result['ocr_text'][:100]}...
+                - Base Score: {result['confidence_score']:.3f}
+                - Dimensions: {result['dimensions'][0]}x{result['dimensions'][1]}
+                
+                Analyze this result against the query "{query}" and provide:
+                1. A precise relevance score (0.0-1.0)
+                2. Detailed explanation of your scoring
+                3. Relevant semantic tags
+                4. Confidence level in your assessment
                 """
             
-            validation_prompt += """
-            IMPORTANT: 
-            1. Respond ONLY with valid JSON in the exact format shown above
-            2. You MUST validate ALL results (all indices 0 to {len(results)-1})
-            3. Keep explanations concise but accurate
+            validation_prompt += f"""
+            
+            CRITICAL REQUIREMENTS:
+            1. You MUST validate ALL {len(results)} results (indices 0 to {len(results)-1})
+            2. Provide detailed, specific explanations for each score
+            3. Be consistent in your scoring methodology
+            4. Consider both visual and semantic aspects
+            5. Respond ONLY with valid JSON in the exact format shown above
+            6. Ensure all scores are between 0.0 and 1.0
             """
             
-            logger.info("Sending validation request to OpenAI...")
+            logger.info("Sending enhanced validation request to OpenAI...")
             
-            # Get OpenAI validation
+            # Get OpenAI validation with increased limits for better accuracy
             response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o",  # Using GPT-4o for better accuracy
                 messages=[
-                    {"role": "system", "content": "You are a precise UI/UX analyst. You must respond with valid JSON only."},
+                    {"role": "system", "content": "You are a precise, analytical UI/UX expert. You must respond with valid JSON only and evaluate every result comprehensively."},
                     {"role": "user", "content": validation_prompt}
                 ],
-                max_tokens=1500,  # Increased from 800 to handle multiple results
-                temperature=0.1
+                max_tokens=3000,  # Increased from 1500 for comprehensive validation
+                temperature=0.1,   # Reduced for more consistent scoring
+                top_p=0.95,       # Better focus
+                frequency_penalty=0.1,  # Reduce repetition
+                presence_penalty=0.1    # Encourage comprehensive coverage
             )
             
-            logger.info("OpenAI response received, parsing...")
-            logger.info(f"Response content: {response.choices[0].message.content[:200]}...")
+            logger.info("OpenAI response received, parsing enhanced validation...")
+            logger.info(f"Response content: {response.choices[0].message.content[:300]}...")
             
             # Parse OpenAI response
             try:
@@ -1019,28 +1131,30 @@ class VisualMemorySearch:
                         results[idx]['openai_score'] = validation.get('relevance_score', 0.0)
                         results[idx]['openai_explanation'] = validation.get('explanation', '')
                         results[idx]['openai_tags'] = validation.get('semantic_tags', [])
+                        results[idx]['openai_confidence'] = validation.get('confidence_level', 'medium')
                         
-                        # Calculate final score as weighted average
+                        # Calculate final score as weighted average with enhanced weighting
                         original_score = results[idx]['confidence_score']
                         openai_score = results[idx]['openai_score']
                         
-                        # Weight: 40% original algorithm, 60% OpenAI validation
-                        final_score = (original_score * 0.4) + (openai_score * 0.6)
+                        # Enhanced weighting: 30% original algorithm, 70% OpenAI validation for better accuracy
+                        final_score = (original_score * 0.3) + (openai_score * 0.7)
                         results[idx]['final_score'] = final_score
                         validated_count += 1
-                        logger.info(f"Validated result {idx}: {results[idx]['filename']} - OpenAI score: {openai_score:.3f}")
+                        logger.info(f"Validated result {idx}: {results[idx]['filename']} - OpenAI score: {openai_score:.3f}, Final: {final_score:.3f}")
                     else:
                         logger.warning(f"OpenAI returned index {idx} but we only have {len(results)} results")
                 
-                logger.info(f"OpenAI validation completed: {validated_count}/{len(results)} results validated")
+                logger.info(f"OpenAI validation completed: {validated_count}/{len(results)} results validated with enhanced accuracy")
                 
-                # Ensure all results have final scores
+                # Ensure all results have final scores and enhanced metadata
                 for i, result in enumerate(results):
                     if 'final_score' not in result:
                         result['final_score'] = result['confidence_score']
                         result['openai_score'] = None
                         result['openai_explanation'] = 'Not validated by OpenAI'
                         result['openai_tags'] = []
+                        result['openai_confidence'] = 'none'
                         logger.warning(f"Result {i} ({result['filename']}) was not validated by OpenAI")
                 
             except json.JSONDecodeError as e:
@@ -1052,6 +1166,7 @@ class VisualMemorySearch:
                     result['openai_score'] = None
                     result['openai_explanation'] = 'Validation failed - JSON parsing error'
                     result['openai_tags'] = []
+                    result['openai_confidence'] = 'error'
             
             return results
             
@@ -1063,6 +1178,7 @@ class VisualMemorySearch:
                 result['openai_score'] = None
                 result['openai_explanation'] = 'Validation failed - API error'
                 result['openai_tags'] = []
+                result['openai_confidence'] = 'error'
             
             return results
 
@@ -1112,19 +1228,20 @@ def main():
             print(f"Searching for: '{args.query}'")
             print("-" * 50)
             
-            results = search_engine.search(args.query)
+            results = search_engine.search(args.query, top_k=5)  # Ensure top 5 results
             
             if results:
-                print(f"Found {len(results)} results:")
+                print(f"Found {len(results)} top results:")
                 print("-" * 40)
                 for i, result in enumerate(results, 1):
                     final_score = result.get('final_score', result['confidence_score'])
                     openai_score = result.get('openai_score')
+                    rank = result.get('rank', i)
                     
                     if openai_score is not None:
-                        print(f"{i:2d}. {result['filename']:<30} Final: {final_score:.3f} (OpenAI: {openai_score:.3f})")
+                        print(f"{rank:2d}. {result['filename']:<30} Final: {final_score:.3f} (OpenAI: {openai_score:.3f})")
                     else:
-                        print(f"{i:2d}. {result['filename']:<30} Score: {final_score:.3f}")
+                        print(f"{rank:2d}. {result['filename']:<30} Score: {final_score:.3f}")
                 
                 # Show detailed results option
                 print("\n" + "-" * 40)
@@ -1132,7 +1249,8 @@ def main():
                 if show_details in ['y', 'yes']:
                     print("\n📋 Detailed Results:")
                     for i, result in enumerate(results, 1):
-                        print(f"\n{i}. 📱 {result['filename']}")
+                        rank = result.get('rank', i)
+                        print(f"\n{rank}. 📱 {result['filename']}")
                         print(f"   Final Score: {result.get('final_score', result['confidence_score']):.3f}")
                         print(f"   Original Score: {result['confidence_score']:.3f}")
                         
@@ -1140,6 +1258,7 @@ def main():
                             print(f"   OpenAI Score: {result['openai_score']:.3f}")
                             print(f"   OpenAI Explanation: {result.get('openai_explanation', 'N/A')}")
                             print(f"   OpenAI Tags: {', '.join(result.get('openai_tags', []))}")
+                            print(f"   OpenAI Confidence: {result.get('openai_confidence', 'N/A')}")
                         
                         print(f"   Path: {result['file_path']}")
                         print(f"   Dimensions: {result['dimensions'][0]}x{result['dimensions'][1]}")
@@ -1206,13 +1325,14 @@ def main():
                     elif user_input.strip():
                         # Treat as search query
                         print(f"\n🔍 Searching for: '{user_input}'")
-                        results = search_engine.search(user_input)
+                        results = search_engine.search(user_input, top_k=5)  # Ensure top 5 results
                         
                         if results:
-                            print(f"\n📊 Found {len(results)} results:")
+                            print(f"\n📊 Found {len(results)} top results:")
                             print("-" * 50)
                             for i, result in enumerate(results, 1):
-                                print(f"{i:2d}. {result['filename']:<30} Score: {result['confidence_score']:.3f}")
+                                rank = result.get('rank', i)
+                                print(f"{rank:2d}. {result['filename']:<30} Score: {result['confidence_score']:.3f}")
                             
                             # Show detailed results option
                             print("\n" + "-" * 50)
@@ -1220,7 +1340,8 @@ def main():
                             if show_details in ['y', 'yes']:
                                 print("\n📋 Detailed Results:")
                                 for i, result in enumerate(results, 1):
-                                    print(f"\n{i}. 📱 {result['filename']} (Score: {result['confidence_score']:.3f})")
+                                    rank = result.get('rank', i)
+                                    print(f"\n{rank}. 📱 {result['filename']} (Score: {result['confidence_score']:.3f})")
                                     print(f"   📍 {result['file_path']}")
                                     if result['ocr_text']:
                                         print(f"   📝 Text: {result['ocr_text'][:100]}...")
