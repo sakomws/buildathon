@@ -166,6 +166,9 @@
                             <button type="button" class="btn btn-info w-100 mb-2" onclick="checkDebugInfo()">
                                 <i class="fas fa-bug"></i> Debug Info
                             </button>
+                            <button type="button" class="btn btn-secondary w-100 mb-2" onclick="debugFileInput()">
+                                <i class="fas fa-file"></i> Debug File Input
+                            </button>
                         </div>
                         <div class="mt-3">
                             <small class="text-muted">
@@ -270,20 +273,29 @@
             const fileInput = document.getElementById('fileInput');
             const uploadArea = document.getElementById('uploadArea');
             
+            console.log('Validating upload form...');
+            console.log('File input element:', fileInput);
+            console.log('File input files:', fileInput?.files);
+            console.log('File input files length:', fileInput?.files?.length);
+            
             // Check if file input has a file
             if (!fileInput || fileInput.files.length === 0) {
                 e.preventDefault();
+                console.error('No file attached to input');
                 
                 // Check if we have a stored file reference
                 const storedFile = uploadArea.getAttribute('data-selected-file');
                 if (storedFile) {
                     try {
                         const fileInfo = JSON.parse(storedFile);
+                        console.log('Stored file info:', fileInfo);
                         alert(`File "${fileInfo.name}" is selected but not properly attached. Please try selecting the file again.`);
                     } catch (e) {
+                        console.error('Failed to parse stored file info:', e);
                         alert('File is selected but not properly attached. Please try selecting the file again.');
                     }
                 } else {
+                    console.error('No stored file info found');
                     alert('Please select a file before uploading.');
                 }
                 return false;
@@ -291,11 +303,15 @@
             
             // Check file type
             const file = fileInput.files[0];
+            console.log('File to upload:', file);
+            
             if (!file.type.startsWith('image/')) {
                 e.preventDefault();
                 alert('Please select an image file (PNG, JPG, JPEG, GIF, BMP).');
                 return false;
             }
+            
+            console.log('File validation passed, proceeding with upload...');
             
             // Show loading state
             const uploadBtn = document.getElementById('uploadBtn');
@@ -333,6 +349,7 @@
             fileInput.addEventListener('change', (e) => {
                 if (e.target.files.length > 0) {
                     const file = e.target.files[0];
+                    console.log('File selected:', file.name, file.size, file.type);
                     showFilePreview(file);
                     
                     // Store the file reference in the upload area
@@ -341,6 +358,12 @@
                         size: file.size,
                         type: file.type
                     }));
+                    
+                    // Debug: Check if file is properly attached
+                    setTimeout(() => {
+                        console.log('After preview - File input files:', fileInput.files);
+                        console.log('After preview - File input files length:', fileInput.files.length);
+                    }, 100);
                 }
             });
         }
@@ -359,6 +382,7 @@
                         type: file.type
                     }));
                     
+                    // Replace the upload area content but keep the file input
                     uploadArea.innerHTML = `
                         <img src="${e.target.result}" class="img-fluid mb-3" style="max-height: 150px; object-fit: contain; border-radius: 8px; border: 1px solid #dee2e6;">
                         <p class="mb-2">Selected: <strong>${file.name}</strong></p>
@@ -368,12 +392,13 @@
                         </button>
                     `;
                     
-                    // Ensure the file input still has the file
-                    if (fileInput && fileInput.files.length === 0) {
-                        // Re-attach the file to the input
+                    // IMPORTANT: Keep the original file input in the DOM and ensure it has the file
+                    if (fileInput) {
+                        // Clear any existing files and add the new one
                         const dataTransfer = new DataTransfer();
                         dataTransfer.items.add(file);
                         fileInput.files = dataTransfer.files;
+                        console.log('File attached to input:', fileInput.files[0]?.name);
                     }
                 };
                 reader.readAsDataURL(file);
@@ -553,6 +578,30 @@
                 alert('Debug Info:\n' + JSON.stringify(data, null, 2));
             } catch (error) {
                 alert('Failed to fetch debug info: ' + error.message);
+            }
+        }
+
+        function debugFileInput() {
+            const fileInput = document.getElementById('fileInput');
+            const uploadArea = document.getElementById('uploadArea');
+
+            if (fileInput && uploadArea) {
+                console.log('File Input Element:', fileInput);
+                console.log('File Input Files:', fileInput.files);
+                console.log('File Input Files Length:', fileInput.files.length);
+                console.log('Upload Area Data-Selected-File:', uploadArea.getAttribute('data-selected-file'));
+
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    console.log('Selected File:', file.name, file.size, file.type);
+                    alert(`File selected: ${file.name}\nSize: ${file.size} bytes\nType: ${file.type}`);
+                } else {
+                    console.log('No file selected in File Input.');
+                    alert('No file selected in File Input.');
+                }
+            } else {
+                console.error('File Input or Upload Area not found.');
+                alert('File Input or Upload Area not found.');
             }
         }
     </script>
