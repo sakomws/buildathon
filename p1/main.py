@@ -1516,7 +1516,8 @@ class VisualMemorySearch:
             details = f"Blue pixels: {blue_percentage:.1f}%, Buttons: {len(buttons)}, Blue buttons: {len(blue_buttons)}"
             
             if blue_buttons:
-                details += f" - Locations: {[f'({b["bbox"][0]},{b["bbox"][1]})' for b in blue_buttons]}"
+                locations = [f'({b["bbox"][0]},{b["bbox"][1]})' for b in blue_buttons]
+                details += f" - Locations: {locations}"
             
             logger.info(f"Blue button detection for {file_path.name}: {details}")
             
