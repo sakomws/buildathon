@@ -70,7 +70,17 @@ def index():
     """Main page - redirect to login if not authenticated."""
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    return render_template('index.html')
+    
+    # Get list of indexed screenshots
+    screenshots = []
+    if init_search_engine():
+        try:
+            screenshots = search_engine.list_screenshots()
+        except Exception as e:
+            logger.error(f"Failed to list screenshots: {e}")
+            screenshots = []
+    
+    return render_template('index.html', screenshots=screenshots)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -296,6 +306,38 @@ def debug_info():
         logger.error(f"Debug info failed: {e}")
         return jsonify({'error': f'Debug info failed: {str(e)}'}), 500
 
+@app.route('/status')
+def status():
+    """Get system status."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    try:
+        if not init_search_engine():
+            return jsonify({
+                'status': 'error',
+                'message': 'Search engine not available'
+            })
+        
+        # Get basic stats
+        total_screenshots = len(search_engine.screenshots_data) if search_engine.screenshots_data else 0
+        openai_available = search_engine.use_openai if search_engine else False
+        
+        return jsonify({
+            'status': 'ok',
+            'total_screenshots': total_screenshots,
+            'openai_available': openai_available,
+            'index_file_exists': search_engine.index_file.exists() if search_engine else False,
+            'embeddings_file_exists': search_engine.embeddings_file.exists() if search_engine else False
+        })
+        
+    except Exception as e:
+        logger.error(f"Status check failed: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 @app.route('/test_screenshots/<filename>')
 def serve_test_screenshot(filename):
     """Serve test screenshot files."""
@@ -329,6 +371,30 @@ def serve_upload(filename):
     except Exception as e:
         logger.error(f"Failed to serve upload {filename}: {e}")
         return jsonify({'error': 'Failed to serve file'}), 500
+
+@app.route('/image/<filename>')
+def serve_image(filename):
+    """Serve images from test_screenshots and uploads directories."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    try:
+        # Check if file exists in test_screenshots
+        test_path = Path('test_screenshots') / filename
+        upload_path = Path(UPLOAD_FOLDER) / filename
+        
+        if test_path.exists():
+            from flask import send_file
+            return send_file(test_path, mimetype='image/png')
+        elif upload_path.exists():
+            from flask import send_file
+            return send_file(upload_path, mimetype='image/png')
+        else:
+            return jsonify({'error': 'Image not found'}), 404
+            
+    except Exception as e:
+        logger.error(f"Failed to serve image {filename}: {e}")
+        return jsonify({'error': 'Failed to serve image'}), 500
 
 def find_available_port(start_port=8000):
     """Find an available port starting from start_port."""
