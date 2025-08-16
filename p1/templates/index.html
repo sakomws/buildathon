@@ -388,6 +388,49 @@
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
+
+        /* Enhanced ranking display */
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        }
+
+        .result-card .card-header {
+            border-radius: 15px 15px 0 0 !important;
+            border: none;
+            padding: 1rem 1.5rem;
+        }
+
+        .result-card .card-header h6 {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .rank-badge {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .rank-1 { color: #FFD700; }  /* Gold */
+        .rank-2 { color: #C0C0C0; }  /* Silver */
+        .rank-3 { color: #CD7F32; }  /* Bronze */
+
+        /* Enhanced score display */
+        .score-item .confidence-badge {
+            font-size: 1rem;
+            padding: 0.75rem 1.25rem;
+            font-weight: 600;
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border: 2px solid #28a745;
+            color: #155724;
+        }
+
+        .alert-success .alert-heading {
+            color: #155724;
+            font-weight: 700;
+        }
     </style>
 </head>
 <body>
@@ -573,24 +616,29 @@
                 <div class="card">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="fas fa-list"></i> Search Results
+                            <i class="fas fa-trophy"></i> Top 5 Search Results
                             <span class="badge bg-success ms-2" id="resultsCount">0</span>
                         </h5>
                     </div>
                     <div class="card-body">
                         <!-- Score Explanation -->
                         <div class="alert alert-info mb-3">
-                            <h6 class="alert-heading"><i class="fas fa-info-circle"></i> Understanding the Scores</h6>
+                            <h6 class="alert-heading"><i class="fas fa-info-circle"></i> Understanding the Top 5 Scores</h6>
                             <div class="row">
                                 <div class="col-md-4">
                                     <strong>Base Score:</strong> Original algorithm confidence (OCR + visual features)
                                 </div>
                                 <div class="col-md-4">
-                                    <strong>OpenAI Score:</strong> AI-powered relevance assessment (when available)
+                                    <strong>OpenAI Score:</strong> AI-powered relevance assessment (always available)
                                 </div>
                                 <div class="col-md-4">
-                                    <strong>Final Score:</strong> Combined weighted score for best results
+                                    <strong>Final Score:</strong> Combined weighted score (25% base + 75% OpenAI)
                                 </div>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-star"></i> Results are ranked by Final Score (highest to lowest)
+                                </small>
                             </div>
                         </div>
                         <div id="searchResults"></div>
@@ -842,10 +890,12 @@
             const resultsCount = document.getElementById('resultsCount');
             const searchResults = document.getElementById('searchResults');
 
-            resultsCount.textContent = results.length;
+            // Ensure we have exactly top 5 results
+            const top5Results = results.slice(0, 5);
+            resultsCount.textContent = top5Results.length;
             resultsSection.style.display = 'block';
 
-            if (results.length === 0) {
+            if (top5Results.length === 0) {
                 searchResults.innerHTML = `
                     <div class="text-center text-muted">
                         <i class="fas fa-search fa-3x mb-3"></i>
@@ -855,14 +905,31 @@
                 return;
             }
 
-            let resultsHTML = `<p class="text-muted mb-3">Found ${results.length} results for "${query}"</p>`;
+            let resultsHTML = `
+                <div class="alert alert-success mb-4">
+                    <h6 class="alert-heading"><i class="fas fa-trophy"></i> Top 5 Results Found</h6>
+                    <p class="mb-0">Found ${top5Results.length} results for "${query}" - ranked by highest Final Score</p>
+                </div>
+            `;
             
-            results.forEach((result, index) => {
+            top5Results.forEach((result, index) => {
                 const finalScore = result.final_score || result.confidence_score;
-                const scoreClass = finalScore > 0.7 ? 'success' : finalScore > 0.4 ? 'warning' : 'secondary';
+                const scoreClass = finalScore > 0.8 ? 'success' : finalScore > 0.6 ? 'warning' : 'secondary';
+                const rank = index + 1;
+                const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
                 
                 resultsHTML += `
                     <div class="card result-card mb-3">
+                        <div class="card-header bg-gradient-primary text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">
+                                    ${rankIcon} Rank ${rank} - ${result.filename}
+                                </h6>
+                                <span class="badge bg-light text-dark">
+                                    Final Score: ${finalScore.toFixed(3)}
+                                </span>
+                            </div>
+                        </div>
                         <div class="card-body p-4">
                             <div class="row align-items-center">
                                 <div class="col-md-2 text-center">
@@ -933,18 +1000,18 @@
                                     <div class="scores-container">
                                         <div class="score-item mb-3">
                                             <span class="badge bg-${scoreClass} confidence-badge">
-                                                <i class="fas fa-star"></i> Final Score: ${finalScore}
+                                                <i class="fas fa-trophy"></i> Rank ${rank} Score: ${finalScore.toFixed(3)}
                                             </span>
                                         </div>
                                         <div class="score-item mb-3">
                                             <span class="badge bg-secondary confidence-badge">
-                                                <i class="fas fa-calculator"></i> Base Score: ${result.confidence_score}
+                                                <i class="fas fa-calculator"></i> Base Score: ${result.confidence_score.toFixed(3)}
                                             </span>
                                         </div>
                                         ${result.openai_score ? `
                                             <div class="score-item mb-3">
                                                 <span class="badge bg-primary confidence-badge">
-                                                    <i class="fas fa-robot"></i> OpenAI Score: ${result.openai_score}
+                                                    <i class="fas fa-robot"></i> OpenAI Score: ${result.openai_score.toFixed(3)}
                                                 </span>
                                             </div>
                                         ` : `
