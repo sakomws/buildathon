@@ -137,40 +137,81 @@ def upload_file():
     """Handle file uploads."""
     global search_engine
     
+    logger.info("Upload request received")
+    
     if search_engine is None:
-        flash('Search engine not initialized', 'error')
+        logger.error("Search engine not initialized for upload")
+        flash('Search engine not initialized. Please refresh the page.', 'error')
         return redirect(url_for('index'))
     
     try:
+        logger.info("Processing upload request...")
+        
+        # Check if file was sent
         if 'file' not in request.files:
+            logger.error("No file in request")
             flash('No file selected', 'error')
             return redirect(url_for('index'))
         
         file = request.files['file']
+        logger.info(f"File received: {file.filename}")
+        
         if file.filename == '':
+            logger.error("Empty filename")
             flash('No file selected', 'error')
             return redirect(url_for('index'))
         
+        # Check file type
         if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
+            logger.info(f"File type allowed: {file.filename}")
             
-            # Save to uploads folder
-            upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            file.save(upload_path)
+            # Secure the filename
+            filename = secure_filename(file.filename)
+            logger.info(f"Secured filename: {filename}")
+            
+            # Ensure uploads directory exists
+            upload_dir = app.config['UPLOAD_FOLDER']
+            os.makedirs(upload_dir, exist_ok=True)
+            logger.info(f"Upload directory: {upload_dir}")
+            
+            # Save file
+            upload_path = os.path.join(upload_dir, filename)
+            logger.info(f"Saving file to: {upload_path}")
+            
+            try:
+                file.save(upload_path)
+                logger.info(f"File saved successfully: {upload_path}")
+            except Exception as save_error:
+                logger.error(f"Failed to save file: {save_error}")
+                flash(f'Failed to save file: {str(save_error)}', 'error')
+                return redirect(url_for('index'))
+            
+            # Check if file was actually saved
+            if not os.path.exists(upload_path):
+                logger.error(f"File not found after save: {upload_path}")
+                flash('File was not saved properly', 'error')
+                return redirect(url_for('index'))
             
             # Add to search index
-            if search_engine.add_screenshot(upload_path):
-                flash(f'File {filename} uploaded and indexed successfully!', 'success')
-            else:
-                flash(f'Failed to index file {filename}', 'error')
+            logger.info("Adding file to search index...")
+            try:
+                if search_engine.add_screenshot(upload_path):
+                    logger.info(f"File {filename} uploaded and indexed successfully!")
+                    flash(f'File {filename} uploaded and indexed successfully!', 'success')
+                else:
+                    logger.error(f"Failed to index file {filename}")
+                    flash(f'Failed to index file {filename}', 'error')
+            except Exception as index_error:
+                logger.error(f"Indexing failed: {index_error}")
+                flash(f'File uploaded but indexing failed: {str(index_error)}', 'warning')
         else:
+            logger.error(f"Invalid file type: {file.filename}")
             flash('Invalid file type. Allowed: PNG, JPG, JPEG, GIF, BMP', 'error')
         
         return redirect(url_for('index'))
         
     except Exception as e:
-        logger.error(f"Upload failed: {e}")
+        logger.error(f"Upload failed with exception: {e}")
         flash(f'Upload failed: {str(e)}', 'error')
         return redirect(url_for('index'))
 
@@ -278,6 +319,27 @@ def debug_info():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/image/<path:filename>')
+def serve_image(filename):
+    """Serve images from test_screenshots and uploads directories."""
+    try:
+        # Check if file exists in test_screenshots
+        test_path = os.path.join('test_screenshots', filename)
+        upload_path = os.path.join('uploads', filename)
+        
+        if os.path.exists(test_path):
+            from flask import send_file
+            return send_file(test_path, mimetype='image/png')
+        elif os.path.exists(upload_path):
+            from flask import send_file
+            return send_file(upload_path, mimetype='image/png')
+        else:
+            return "Image not found", 404
+            
+    except Exception as e:
+        logger.error(f"Failed to serve image {filename}: {e}")
+        return "Error serving image", 500
 
 @app.route('/generate_test_data', methods=['POST'])
 def generate_test_data():

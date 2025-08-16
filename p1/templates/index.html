@@ -194,10 +194,15 @@
                                 {% for screenshot in screenshots %}
                                 <div class="col-md-4 col-lg-3 mb-3">
                                     <div class="card result-card h-100">
-                                        <div class="card-body text-center">
-                                            <i class="fas fa-image fa-2x text-muted mb-2"></i>
-                                            <h6 class="card-title">{{ screenshot.filename }}</h6>
-                                            <p class="card-text small text-muted">
+                                        <div class="card-body text-center p-2">
+                                            <img src="{{ url_for('serve_image', filename=screenshot.filename) }}" 
+                                                 class="img-fluid mb-2" 
+                                                 style="max-height: 120px; object-fit: contain; border-radius: 8px;"
+                                                 alt="{{ screenshot.filename }}"
+                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                            <i class="fas fa-image fa-2x text-muted mb-2" style="display: none;"></i>
+                                            <h6 class="card-title small">{{ screenshot.filename }}</h6>
+                                            <p class="card-text small text-muted mb-0">
                                                 {{ screenshot.dimensions[0] }}x{{ screenshot.dimensions[1] }}
                                             </p>
                                         </div>
@@ -278,22 +283,44 @@
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
                     fileInput.files = files;
+                    showFilePreview(files[0]);
                 }
             });
 
             // File selection
             fileInput.addEventListener('change', (e) => {
                 if (e.target.files.length > 0) {
-                    const fileName = e.target.files[0].name;
+                    showFilePreview(e.target.files[0]);
+                }
+            });
+        }
+
+        function showFilePreview(file) {
+            const uploadArea = document.getElementById('uploadArea');
+            
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
                     uploadArea.innerHTML = `
-                        <i class="fas fa-file-image fa-3x text-success mb-3"></i>
-                        <p class="mb-2">Selected: <strong>${fileName}</strong></p>
+                        <img src="${e.target.result}" class="img-fluid mb-3" style="max-height: 150px; object-fit: contain; border-radius: 8px; border: 1px solid #dee2e6;">
+                        <p class="mb-2">Selected: <strong>${file.name}</strong></p>
+                        <p class="small text-muted mb-2">Size: ${(file.size / 1024).toFixed(1)} KB</p>
                         <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
                             Change File
                         </button>
                     `;
-                }
-            });
+                };
+                reader.readAsDataURL(file);
+            } else {
+                uploadArea.innerHTML = `
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <p class="mb-2">Invalid file type: <strong>${file.name}</strong></p>
+                    <p class="small text-muted mb-2">Please select an image file (PNG, JPG, JPEG, GIF, BMP)</p>
+                    <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
+                        Choose Another File
+                    </button>
+                `;
+            }
         }
 
         async function handleSearch(e) {
@@ -361,7 +388,16 @@
                     <div class="card result-card mb-3">
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-8">
+                                <div class="col-md-2 text-center">
+                                    <img src="/image/${result.filename}" 
+                                         class="img-fluid mb-2" 
+                                         style="max-height: 100px; object-fit: contain; border-radius: 8px; border: 1px solid #dee2e6;"
+                                         alt="${result.filename}"
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                    <i class="fas fa-image fa-2x text-muted mb-2" style="display: none;"></i>
+                                    <p class="small text-muted">${result.dimensions[0]}x${result.dimensions[1]}</p>
+                                </div>
+                                <div class="col-md-6">
                                     <h6 class="card-title">
                                         <i class="fas fa-image text-primary"></i> ${result.filename}
                                     </h6>
@@ -398,9 +434,6 @@
                                             </span>
                                         </div>
                                     ` : ''}
-                                    <p class="small text-muted">
-                                        ${result.dimensions[0]}x${result.dimensions[1]} pixels
-                                    </p>
                                 </div>
                             </div>
                         </div>
