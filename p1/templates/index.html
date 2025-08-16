@@ -131,14 +131,18 @@
                             <div class="upload-area" id="uploadArea">
                                 <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
                                 <p class="mb-2">Drag & drop screenshots here or click to browse</p>
-                                <input type="file" name="file" id="fileInput" class="d-none" accept="image/*">
                                 <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
                                     Choose File
                                 </button>
                             </div>
+                            <!-- Keep file input always present -->
+                            <input type="file" name="file" id="fileInput" class="d-none" accept="image/*">
                             <div class="mt-3">
                                 <button type="submit" class="btn btn-primary" id="uploadBtn">
                                     <i class="fas fa-upload"></i> Upload & Index
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary ms-2" onclick="testFileInput()">
+                                    <i class="fas fa-vial"></i> Test File Input
                                 </button>
                             </div>
                         </form>
@@ -273,13 +277,23 @@
             const fileInput = document.getElementById('fileInput');
             const uploadArea = document.getElementById('uploadArea');
             
+            console.log('=== FORM VALIDATION START ===');
             console.log('Validating upload form...');
             console.log('File input element:', fileInput);
             console.log('File input files:', fileInput?.files);
             console.log('File input files length:', fileInput?.files?.length);
+            console.log('File input value:', fileInput?.value);
+            
+            // Test if we can access the file input
+            if (!fileInput) {
+                console.error('File input element not found!');
+                e.preventDefault();
+                alert('File input not found. Please refresh the page and try again.');
+                return false;
+            }
             
             // Check if file input has a file
-            if (!fileInput || fileInput.files.length === 0) {
+            if (fileInput.files.length === 0) {
                 e.preventDefault();
                 console.error('No file attached to input');
                 
@@ -304,6 +318,9 @@
             // Check file type
             const file = fileInput.files[0];
             console.log('File to upload:', file);
+            console.log('File name:', file.name);
+            console.log('File size:', file.size);
+            console.log('File type:', file.type);
             
             if (!file.type.startsWith('image/')) {
                 e.preventDefault();
@@ -312,6 +329,7 @@
             }
             
             console.log('File validation passed, proceeding with upload...');
+            console.log('=== FORM VALIDATION END ===');
             
             // Show loading state
             const uploadBtn = document.getElementById('uploadBtn');
@@ -377,6 +395,10 @@
             const uploadArea = document.getElementById('uploadArea');
             const fileInput = document.getElementById('fileInput');
             
+            console.log('Showing file preview for:', file.name);
+            console.log('File input before preview:', fileInput);
+            console.log('File input files before preview:', fileInput?.files);
+            
             if (file.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
@@ -387,7 +409,7 @@
                         type: file.type
                     }));
                     
-                    // Replace the upload area content but keep the file input
+                    // Update only the preview content, keep file input intact
                     uploadArea.innerHTML = `
                         <img src="${e.target.result}" class="img-fluid mb-3" style="max-height: 150px; object-fit: contain; border-radius: 8px; border: 1px solid #dee2e6;">
                         <p class="mb-2">Selected: <strong>${file.name}</strong></p>
@@ -397,13 +419,16 @@
                         </button>
                     `;
                     
-                    // IMPORTANT: Keep the original file input in the DOM and ensure it has the file
+                    // Ensure the file input has the file
                     if (fileInput) {
                         // Clear any existing files and add the new one
                         const dataTransfer = new DataTransfer();
                         dataTransfer.items.add(file);
                         fileInput.files = dataTransfer.files;
-                        console.log('File attached to input:', fileInput.files[0]?.name);
+                        console.log('File attached to input after preview:', fileInput.files[0]?.name);
+                        console.log('File input files length after preview:', fileInput.files.length);
+                    } else {
+                        console.error('File input not found after preview update!');
                     }
                 };
                 reader.readAsDataURL(file);
@@ -636,6 +661,31 @@
             } else {
                 console.error('File Input or Upload Area not found.');
                 alert('File Input or Upload Area not found.');
+            }
+        }
+
+        function testFileInput() {
+            const fileInput = document.getElementById('fileInput');
+            const uploadArea = document.getElementById('uploadArea');
+
+            if (fileInput && uploadArea) {
+                console.log('Testing File Input State:');
+                console.log('File Input Element:', fileInput);
+                console.log('File Input Files:', fileInput.files);
+                console.log('File Input Files Length:', fileInput.files.length);
+                console.log('Upload Area Data-Selected-File:', uploadArea.getAttribute('data-selected-file'));
+
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    console.log('Selected File for Testing:', file.name, file.size, file.type);
+                    alert(`File selected for testing: ${file.name}\nSize: ${file.size} bytes\nType: ${file.type}`);
+                } else {
+                    console.log('No file selected in File Input for testing.');
+                    alert('No file selected in File Input for testing.');
+                }
+            } else {
+                console.error('File Input or Upload Area not found for testing.');
+                alert('File Input or Upload Area not found for testing.');
             }
         }
     </script>
