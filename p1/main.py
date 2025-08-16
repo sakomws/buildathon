@@ -250,7 +250,7 @@ class VisualMemorySearch:
             return "Unable to generate visual description"
     
     def _generate_openai_description(self, image_path: str, image: Image.Image) -> str:
-        """Generate detailed visual description using OpenAI GPT-4 Vision with enhanced accuracy."""
+        """Generate detailed visual description using OpenAI GPT-4 Vision with maximum accuracy and limits."""
         try:
             # Read and encode image
             with open(image_path, "rb") as image_file:
@@ -300,11 +300,18 @@ class VisualMemorySearch:
             - Color contrast and visual accessibility
             - Internationalization and localization features
 
-            Provide the analysis in a structured, detailed format that captures every visual and functional aspect comprehensively. Be specific about locations, sizes, colors, and interactions to enable precise search matching.
+            **Advanced Analysis:**
+            - User experience flow and interaction patterns
+            - Information density and cognitive load assessment
+            - Visual hierarchy and attention flow
+            - Brand consistency and design system usage
+            - Performance indicators and loading states
+
+            Provide the analysis in a structured, detailed format that captures every visual and functional aspect comprehensively. Be specific about locations, sizes, colors, and interactions to enable precise search matching. Include quantitative assessments where possible.
             """
 
             response = openai.ChatCompletion.create(
-                model="gpt-4o",
+                model="gpt-4o",  # Best available model
                 messages=[
                     {
                         "role": "user",
@@ -319,11 +326,12 @@ class VisualMemorySearch:
                         ]
                     }
                 ],
-                max_tokens=2000,  # Increased from 1000 for more detailed descriptions
-                temperature=0.05,  # Reduced for more consistent, accurate descriptions
-                top_p=0.95,       # Added for better focus
-                frequency_penalty=0.1,  # Added to reduce repetition
-                presence_penalty=0.1    # Added to encourage comprehensive coverage
+                max_tokens=4000,  # Maximum tokens for comprehensive analysis
+                temperature=0.01,  # Minimal randomness for maximum consistency
+                top_p=0.99,       # Maximum focus and precision
+                frequency_penalty=0.2,  # Enhanced to reduce repetition
+                presence_penalty=0.2,   # Enhanced to encourage comprehensive coverage
+                response_format={"type": "text"}  # Ensure text output
             )
             
             return response.choices[0].message.content.strip()
@@ -698,7 +706,15 @@ class VisualMemorySearch:
                         "semantic_tags": self._extract_semantic_tags(self.screenshots_data[idx]["visual_description"]),
                         "ui_patterns": self._extract_ui_patterns_from_description(self.screenshots_data[idx]["visual_description"]),
                         "content_types": self._extract_content_types_from_description(self.screenshots_data[idx]["visual_description"]),
-                        "rank": len(results) + 1  # Add ranking information
+                        "rank": len(results) + 1,  # Add ranking information
+                        "openai_score": None,  # Will be populated by validation
+                        "openai_explanation": None,
+                        "openai_tags": [],
+                        "openai_confidence": None,
+                        "visual_match_details": None,
+                        "content_alignment": None,
+                        "quality_indicators": None,
+                        "final_score": None  # Will be calculated after OpenAI validation
                     }
                     results.append(result)
                     logger.info(f"Result {len(results)}: {result['filename']} (Score: {result['confidence_score']:.3f})")
@@ -1025,7 +1041,7 @@ class VisualMemorySearch:
         ]
 
     def _validate_results_with_openai(self, query: str, results: List[Dict]) -> List[Dict]:
-        """Use OpenAI to validate search results and provide final confidence scores with enhanced accuracy."""
+        """Use OpenAI to validate search results and provide final confidence scores with maximum accuracy and limits."""
         logger.info(f"OpenAI validation check - use_openai: {self.use_openai}, client: {self.openai_client is not None}")
         
         if not self.use_openai or not self.openai_client:
@@ -1033,38 +1049,46 @@ class VisualMemorySearch:
             return results
         
         try:
-            logger.info("Validating results with OpenAI for enhanced accuracy...")
+            logger.info("Validating results with OpenAI for maximum accuracy and comprehensive analysis...")
             
-            # Enhanced validation prompt for maximum accuracy
+            # Enhanced validation prompt for maximum accuracy and detail
             validation_prompt = f"""
-            You are an expert UI/UX analyst and search relevance evaluator. Your task is to analyze search results for a visual memory search system with maximum accuracy.
+            You are an expert UI/UX analyst and search relevance evaluator with deep expertise in visual interface analysis. Your task is to analyze search results for a visual memory search system with maximum accuracy and comprehensive detail.
 
             SEARCH QUERY: "{query}"
 
-            EVALUATION CRITERIA:
-            1. **Visual Match Accuracy**: How well does the image visually match the query?
-            2. **Content Relevance**: Does the content/functionality align with the query intent?
-            3. **Element Presence**: Are the specific UI elements mentioned in the query present?
-            4. **Context Alignment**: Does the overall context match the user's search intent?
-            5. **Quality Assessment**: Overall quality and relevance of the match
+            EVALUATION CRITERIA (Comprehensive Analysis):
+            1. **Visual Match Accuracy**: How precisely does the image visually match the query requirements?
+            2. **Content Relevance**: Does the content/functionality align with the query intent and context?
+            3. **Element Presence**: Are the specific UI elements, colors, and features mentioned in the query present?
+            4. **Context Alignment**: Does the overall context and purpose match the user's search intent?
+            5. **Quality Assessment**: Overall quality, clarity, and relevance of the match
+            6. **Semantic Coherence**: How well do the visual and textual elements align semantically?
+            7. **User Experience Match**: Does the interface provide the expected user experience?
+            8. **Technical Accuracy**: Are the technical details and implementation aspects relevant?
 
-            SCORING SYSTEM:
-            - 0.9-1.0: Perfect match, exactly what was requested
-            - 0.8-0.89: Excellent match, very close to request
-            - 0.7-0.79: Good match, relevant but not perfect
-            - 0.6-0.69: Fair match, somewhat relevant
-            - 0.5-0.59: Weak match, barely relevant
-            - 0.0-0.49: Poor match, not relevant
+            DETAILED SCORING SYSTEM:
+            - 0.95-1.0: Perfect match, exactly what was requested with exceptional quality
+            - 0.90-0.94: Excellent match, very close to request with high quality
+            - 0.85-0.89: Very good match, relevant and high quality
+            - 0.80-0.84: Good match, relevant with good quality
+            - 0.75-0.79: Fair match, somewhat relevant
+            - 0.70-0.74: Weak match, barely relevant
+            - 0.65-0.69: Poor match, low relevance
+            - 0.0-0.64: Very poor match, not relevant
 
-            You MUST evaluate ALL {len(results)} results. Respond with this EXACT JSON format:
+            You MUST evaluate ALL {len(results)} results comprehensively. Respond with this EXACT JSON format:
             {{
                 "results": [
                     {{
                         "index": 0,
-                        "relevance_score": 0.85,
-                        "explanation": "Detailed explanation of why this score was given...",
-                        "semantic_tags": ["button", "blue", "interface", "form"],
-                        "confidence_level": "high"
+                        "relevance_score": 0.92,
+                        "explanation": "Comprehensive explanation of scoring with specific details...",
+                        "semantic_tags": ["button", "blue", "interface", "form", "modern"],
+                        "confidence_level": "very_high",
+                        "visual_match_details": "Specific visual elements that match the query...",
+                        "content_alignment": "How the content aligns with user intent...",
+                        "quality_indicators": "Specific quality aspects observed..."
                     }}
                 ]
             }}
@@ -1076,54 +1100,65 @@ class VisualMemorySearch:
                 validation_prompt += f"""
                 RESULT {i+1} (Index: {i}):
                 - Filename: {result['filename']}
-                - Visual Description: {result['visual_description'][:150]}...
-                - OCR Text: {result['ocr_text'][:100]}...
+                - Visual Description: {result['visual_description'][:200]}...
+                - OCR Text: {result['ocr_text'][:150]}...
                 - Base Score: {result['confidence_score']:.3f}
                 - Dimensions: {result['dimensions'][0]}x{result['dimensions'][1]}
+                - Semantic Tags: {', '.join(result.get('semantic_tags', []))}
+                - UI Patterns: {', '.join(result.get('ui_patterns', []))}
                 
                 Analyze this result against the query "{query}" and provide:
-                1. A precise relevance score (0.0-1.0)
-                2. Detailed explanation of your scoring
-                3. Relevant semantic tags
-                4. Confidence level in your assessment
+                1. A precise relevance score (0.0-1.0) with detailed justification
+                2. Comprehensive explanation of your scoring methodology
+                3. Relevant semantic tags and categories
+                4. Confidence level in your assessment (very_high/high/medium/low)
+                5. Specific visual match details
+                6. Content alignment analysis
+                7. Quality indicators and observations
                 """
             
             validation_prompt += f"""
             
-            CRITICAL REQUIREMENTS:
+            CRITICAL REQUIREMENTS FOR MAXIMUM ACCURACY:
             1. You MUST validate ALL {len(results)} results (indices 0 to {len(results)-1})
-            2. Provide detailed, specific explanations for each score
-            3. Be consistent in your scoring methodology
-            4. Consider both visual and semantic aspects
+            2. Provide comprehensive, detailed explanations for each score
+            3. Be extremely consistent and precise in your scoring methodology
+            4. Consider both visual and semantic aspects comprehensively
             5. Respond ONLY with valid JSON in the exact format shown above
-            6. Ensure all scores are between 0.0 and 1.0
+            6. Ensure all scores are between 0.0 and 1.0 with high precision
+            7. Use the full scoring range for maximum differentiation
+            8. Provide specific, actionable insights for each result
+            9. Consider edge cases and nuanced differences between results
+            10. Maintain professional analytical standards throughout
             """
             
-            logger.info("Sending enhanced validation request to OpenAI...")
+            logger.info("Sending maximum accuracy validation request to OpenAI...")
             
-            # Get OpenAI validation with increased limits for better accuracy
+            # Get OpenAI validation with maximum limits and best models for optimal accuracy
             response = openai.ChatCompletion.create(
-                model="gpt-4o",  # Using GPT-4o for better accuracy
+                model="gpt-4o",  # Best available model for maximum accuracy
                 messages=[
-                    {"role": "system", "content": "You are a precise, analytical UI/UX expert. You must respond with valid JSON only and evaluate every result comprehensively."},
+                    {"role": "system", "content": "You are a world-class UI/UX expert and search relevance analyst. You must respond with valid JSON only and evaluate every result with maximum precision and comprehensive detail."},
                     {"role": "user", "content": validation_prompt}
                 ],
-                max_tokens=3000,  # Increased from 1500 for comprehensive validation
-                temperature=0.1,   # Reduced for more consistent scoring
-                top_p=0.95,       # Better focus
-                frequency_penalty=0.1,  # Reduce repetition
-                presence_penalty=0.1    # Encourage comprehensive coverage
+                max_tokens=6000,  # Maximum tokens for comprehensive validation of all results
+                temperature=0.01,  # Minimal randomness for maximum consistency and accuracy
+                top_p=0.99,       # Maximum focus and precision
+                frequency_penalty=0.3,  # Enhanced to reduce repetition and improve variety
+                presence_penalty=0.3,   # Enhanced to encourage comprehensive coverage
+                response_format={"type": "text"},  # Ensure consistent text output
+                presence_penalty_scale=0.1  # Fine-tune presence penalty for better results
             )
             
-            logger.info("OpenAI response received, parsing enhanced validation...")
-            logger.info(f"Response content: {response.choices[0].message.content[:300]}...")
+            logger.info("OpenAI response received, parsing maximum accuracy validation...")
+            logger.info(f"Response content: {response.choices[0].message.content[:400]}...")
             
             # Parse OpenAI response
             try:
                 validation_data = json.loads(response.choices[0].message.content.strip())
                 logger.info(f"Parsed validation data: {len(validation_data.get('results', []))} results")
                 
-                # Update results with OpenAI validation
+                # Update results with comprehensive OpenAI validation
                 validated_count = 0
                 for validation in validation_data.get('results', []):
                     idx = validation.get('index', 0)
@@ -1132,22 +1167,25 @@ class VisualMemorySearch:
                         results[idx]['openai_explanation'] = validation.get('explanation', '')
                         results[idx]['openai_tags'] = validation.get('semantic_tags', [])
                         results[idx]['openai_confidence'] = validation.get('confidence_level', 'medium')
+                        results[idx]['visual_match_details'] = validation.get('visual_match_details', '')
+                        results[idx]['content_alignment'] = validation.get('content_alignment', '')
+                        results[idx]['quality_indicators'] = validation.get('quality_indicators', '')
                         
-                        # Calculate final score as weighted average with enhanced weighting
+                        # Calculate final score as weighted average with enhanced weighting for maximum accuracy
                         original_score = results[idx]['confidence_score']
                         openai_score = results[idx]['openai_score']
                         
-                        # Enhanced weighting: 30% original algorithm, 70% OpenAI validation for better accuracy
-                        final_score = (original_score * 0.3) + (openai_score * 0.7)
+                        # Enhanced weighting: 25% original algorithm, 75% OpenAI validation for maximum accuracy
+                        final_score = (original_score * 0.25) + (openai_score * 0.75)
                         results[idx]['final_score'] = final_score
                         validated_count += 1
-                        logger.info(f"Validated result {idx}: {results[idx]['filename']} - OpenAI score: {openai_score:.3f}, Final: {final_score:.3f}")
+                        logger.info(f"Validated result {idx}: {results[idx]['filename']} - OpenAI: {openai_score:.3f}, Final: {final_score:.3f}")
                     else:
                         logger.warning(f"OpenAI returned index {idx} but we only have {len(results)} results")
                 
-                logger.info(f"OpenAI validation completed: {validated_count}/{len(results)} results validated with enhanced accuracy")
+                logger.info(f"OpenAI validation completed: {validated_count}/{len(results)} results validated with maximum accuracy")
                 
-                # Ensure all results have final scores and enhanced metadata
+                # Ensure all results have final scores and comprehensive metadata
                 for i, result in enumerate(results):
                     if 'final_score' not in result:
                         result['final_score'] = result['confidence_score']
@@ -1155,6 +1193,9 @@ class VisualMemorySearch:
                         result['openai_explanation'] = 'Not validated by OpenAI'
                         result['openai_tags'] = []
                         result['openai_confidence'] = 'none'
+                        result['visual_match_details'] = 'Not available'
+                        result['content_alignment'] = 'Not available'
+                        result['quality_indicators'] = 'Not available'
                         logger.warning(f"Result {i} ({result['filename']}) was not validated by OpenAI")
                 
             except json.JSONDecodeError as e:
@@ -1167,6 +1208,9 @@ class VisualMemorySearch:
                     result['openai_explanation'] = 'Validation failed - JSON parsing error'
                     result['openai_tags'] = []
                     result['openai_confidence'] = 'error'
+                    result['visual_match_details'] = 'Not available'
+                    result['content_alignment'] = 'Not available'
+                    result['quality_indicators'] = 'Not available'
             
             return results
             
@@ -1179,6 +1223,9 @@ class VisualMemorySearch:
                 result['openai_explanation'] = 'Validation failed - API error'
                 result['openai_tags'] = []
                 result['openai_confidence'] = 'error'
+                result['visual_match_details'] = 'Not available'
+                result['content_alignment'] = 'Not available'
+                result['quality_indicators'] = 'Not available'
             
             return results
 
