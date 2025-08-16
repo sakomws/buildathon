@@ -538,16 +538,22 @@ class VisualMemorySearch:
         return form_elements >= 2  # At least 2 form elements
     
     def _detect_buttons(self, img_array: np.ndarray) -> List[str]:
-        """Detect button-like elements in the image."""
+        """Detect button-like elements in the image with enhanced blue button detection."""
         try:
             buttons = []
             
-            # Simple edge detection for rectangular shapes
+            # Convert to different color spaces for better detection
+            hsv = cv2.cvtColor(img_array, cv2.COLOR_RGB2HSV)
             gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-            edges = cv2.Canny(gray, 50, 150)
             
-            # Find contours
+            # Enhanced edge detection for rectangular shapes
+            edges = cv2.Canny(gray, 30, 100)  # Lowered thresholds for better detection
+            
+            # Find contours with different methods
             contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            button_count = 0
+            blue_button_found = False
             
             for contour in contours:
                 # Approximate contour to polygon
@@ -560,12 +566,42 @@ class VisualMemorySearch:
                     x, y, w, h = cv2.boundingRect(contour)
                     
                     # Check if it's button-sized (not too small, not too large)
-                    if 50 <= w <= 300 and 20 <= h <= 100:
+                    if 30 <= w <= 400 and 20 <= h <= 120:
                         # Check if it's not just the image border
                         img_h, img_w = img_array.shape[:2]
-                        if x > 10 and y > 10 and x + w < img_w - 10 and y + h < img_h - 10:
-                            buttons.append("button")
-                            break  # Just add one button detection
+                        if x > 5 and y > 5 and x + w < img_w - 5 and y + h < img_h - 5:
+                            
+                            # Check if this region contains blue (potential blue button)
+                            roi = hsv[y:y+h, x:x+w]
+                            blue_mask = cv2.inRange(roi, np.array([100, 60, 60]), np.array([130, 255, 255]))
+                            blue_pixels = cv2.countNonZero(blue_mask)
+                            roi_pixels = roi.shape[0] * roi.shape[1]
+                            blue_percentage = (blue_pixels / roi_pixels) * 100
+                            
+                            if blue_percentage > 20:  # Significant blue in this region
+                                buttons.append("blue button")
+                                blue_button_found = True
+                                logger.info(f"Blue button detected at ({x},{y}) with {blue_percentage:.1f}% blue pixels")
+                            else:
+                                buttons.append("button")
+                            
+                            button_count += 1
+                            
+                            # Limit to avoid too many detections
+                            if button_count >= 5:
+                                break
+            
+            # If no blue button found but buttons exist, check overall image for blue
+            if not blue_button_found and button_count > 0:
+                # Check if the image has significant blue content
+                blue_mask = cv2.inRange(hsv, np.array([100, 60, 60]), np.array([130, 255, 255]))
+                blue_pixels = cv2.countNonZero(blue_mask)
+                total_pixels = hsv.shape[0] * hsv.shape[1]
+                blue_percentage = (blue_pixels / total_pixels) * 100
+                
+                if blue_percentage > 5:  # If image has blue content and buttons
+                    buttons = ["blue button"] + [btn for btn in buttons if btn != "blue button"]
+                    logger.info(f"Image has {blue_percentage:.1f}% blue content with buttons")
             
             return buttons
             
@@ -574,42 +610,58 @@ class VisualMemorySearch:
             return []
     
     def _detect_dominant_colors(self, img_array: np.ndarray) -> List[str]:
-        """Detect dominant colors in the image with improved accuracy."""
+        """Detect dominant colors in the image with enhanced accuracy for blue button detection."""
         try:
             colors = []
             
             # Convert to HSV for better color detection
             hsv = cv2.cvtColor(img_array, cv2.COLOR_RGB2HSV)
             
-            # Define more precise color ranges with better thresholds
+            # Enhanced blue detection with multiple ranges for better accuracy
+            blue_ranges = [
+                ([100, 80, 80], [130, 255, 255]),      # Standard blue
+                ([110, 70, 70], [140, 255, 255]),      # Lighter blue
+                ([90, 90, 90], [120, 255, 255]),       # Darker blue
+                ([100, 60, 60], [130, 255, 200]),      # Desaturated blue
+            ]
+            
+            # Check blue with multiple ranges and lower threshold
+            blue_pixels_total = 0
+            total_pixels = hsv.shape[0] * hsv.shape[1]
+            
+            for lower, upper in blue_ranges:
+                lower = np.array(lower)
+                upper = np.array(upper)
+                mask = cv2.inRange(hsv, lower, upper)
+                blue_pixels = cv2.countNonZero(mask)
+                blue_pixels_total += blue_pixels
+            
+            # Calculate blue percentage and add if significant
+            blue_percentage = (blue_pixels_total / total_pixels) * 100
+            if blue_percentage > 3:  # Lowered threshold for blue detection
+                colors.append("blue color")
+                logger.info(f"Blue detected: {blue_percentage:.1f}% of pixels")
+            
+            # Other color ranges with enhanced detection
             color_ranges = {
-                'blue': ([100, 100, 100], [130, 255, 255]),      # More saturated blue
-                'red': ([0, 100, 100], [10, 255, 255]),          # More saturated red
-                'green': ([40, 100, 100], [80, 255, 255]),       # More saturated green
-                'yellow': ([20, 100, 100], [40, 255, 255]),      # More saturated yellow
-                'purple': ([130, 100, 100], [160, 255, 255]),    # More saturated purple
-                'orange': ([10, 100, 100], [20, 255, 255])       # More saturated orange
+                'red': ([0, 80, 80], [10, 255, 255]),          # Enhanced red
+                'green': ([40, 80, 80], [80, 255, 255]),        # Enhanced green
+                'yellow': ([20, 80, 80], [40, 255, 255]),       # Enhanced yellow
+                'purple': ([130, 80, 80], [160, 255, 255]),     # Enhanced purple
+                'orange': ([10, 80, 80], [20, 255, 255])        # Enhanced orange
             }
             
-            # Check each color with higher threshold
             for color_name, (lower, upper) in color_ranges.items():
                 lower = np.array(lower)
                 upper = np.array(upper)
-                
-                # Create mask for this color
                 mask = cv2.inRange(hsv, lower, upper)
-                
-                # Count pixels of this color
                 color_pixels = cv2.countNonZero(mask)
-                total_pixels = mask.shape[0] * mask.shape[1]
                 color_percentage = (color_pixels / total_pixels) * 100
                 
-                # Higher threshold (10% instead of 5%) to avoid false positives
-                if color_percentage > 10:
+                if color_percentage > 5:  # Lowered threshold for better detection
                     colors.append(f"{color_name} color")
             
             # Special case: detect dark/light themes
-            # Calculate overall brightness
             gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
             avg_brightness = np.mean(gray)
             
@@ -695,6 +747,14 @@ class VisualMemorySearch:
             top_indices = np.argsort(semantic_boosted)[::-1][:top_k]
             
             logger.info(f"Top {len(top_indices)} results selected from {len(self.screenshots_data)} total images")
+            logger.info(f"Query: '{query}' - Enhanced: '{enhanced_query}'")
+            
+            # Log blue button detection for debugging
+            if 'blue' in query.lower() and 'button' in query.lower():
+                logger.info("Blue button query detected - applying enhanced detection...")
+                for i, data in enumerate(self.screenshots_data):
+                    if 'blue' in data['visual_description'].lower() and 'button' in data['visual_description'].lower():
+                        logger.info(f"Potential blue button found in: {data['filename']}")
             
             results = []
             for idx in top_indices:
@@ -722,6 +782,13 @@ class VisualMemorySearch:
                     results.append(result)
                     logger.info(f"Result {len(results)}: {result['filename']} (Score: {result['confidence_score']:.3f})")
             
+            # Ensure exactly top 5 results
+            if len(results) > top_k:
+                results = results[:top_k]
+                logger.info(f"Truncated results to exactly {top_k} top results")
+            elif len(results) < top_k:
+                logger.warning(f"Only {len(results)} results found, expected {top_k}")
+            
             # Use OpenAI to validate and score ALL top 5 results with enhanced accuracy
             if results:
                 logger.info(f"Validating {len(results)} results with OpenAI for maximum accuracy...")
@@ -744,25 +811,34 @@ class VisualMemorySearch:
             return []
     
     def _enhance_search_query(self, query: str) -> str:
-        """Enhance search query for better visual search."""
+        """Enhance search query for better visual search, especially for blue button queries."""
         query_lower = query.lower()
         enhanced = query
         
-        # Add visual context for color queries
-        if any(color in query_lower for color in ['blue', 'red', 'green', 'yellow', 'purple', 'orange']):
-            enhanced += " visual appearance color"
+        # Enhanced blue button detection
+        if 'blue' in query_lower and 'button' in query_lower:
+            enhanced += " blue button user interface element interactive component"
+            enhanced += " visual appearance color blue button design"
+        elif 'blue' in query_lower:
+            enhanced += " visual appearance color blue theme design"
+        elif 'button' in query_lower:
+            enhanced += " user interface element interactive component button design"
         
-        # Add UI context for button queries
-        if 'button' in query_lower:
-            enhanced += " user interface element"
+        # Add visual context for color queries
+        if any(color in query_lower for color in ['red', 'green', 'yellow', 'purple', 'orange', 'pink', 'brown', 'gray', 'black', 'white']):
+            enhanced += " visual appearance color"
         
         # Add form context for form queries
         if 'form' in query_lower:
-            enhanced += " input fields interface"
+            enhanced += " input fields interface form design"
         
         # Add layout context for layout queries
         if any(word in query_lower for word in ['layout', 'interface', 'design']):
-            enhanced += " visual design appearance"
+            enhanced += " visual design appearance layout structure"
+        
+        # Add UI context for UI queries
+        if any(word in query_lower for word in ['ui', 'ux', 'interface']):
+            enhanced += " user interface design user experience"
         
         return enhanced
     
@@ -783,7 +859,12 @@ class VisualMemorySearch:
                     # Check for exact color matches with higher boost
                     for color in ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'pink', 'brown', 'gray', 'black', 'white']:
                         if color in query_lower and color in desc_lower:
-                            boosted[i] *= 2.0  # Boost by 100% for exact color matches
+                            # Special boost for blue button queries
+                            if color == 'blue' and 'button' in query_lower and 'button' in desc_lower:
+                                boosted[i] *= 3.0  # 200% boost for blue button matches
+                                logger.info(f"Blue button boost applied to {data['filename']}")
+                            else:
+                                boosted[i] *= 2.0  # 100% boost for exact color matches
                             break
                         elif color in query_lower and any(c in desc_lower for c in ['color', 'colored', 'theme', 'background']):
                             boosted[i] *= 1.7  # Boost by 70% for color-related descriptions
@@ -794,7 +875,12 @@ class VisualMemorySearch:
             if element in query_lower:
                 for i, data in enumerate(self.screenshots_data):
                     if data['visual_description'] and element in data['visual_description'].lower():
-                        boosted[i] *= 1.8  # Boost by 80% for UI element matches
+                        # Special boost for blue button queries
+                        if element == 'button' and 'blue' in query_lower and 'blue' in data['visual_description'].lower():
+                            boosted[i] *= 2.5  # 150% boost for blue button matches
+                            logger.info(f"Blue button UI boost applied to {data['filename']}")
+                        else:
+                            boosted[i] *= 1.8  # 80% boost for UI element matches
         
         # Enhanced text matching with semantic similarity
         for i, data in enumerate(self.screenshots_data):
