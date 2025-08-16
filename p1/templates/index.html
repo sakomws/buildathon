@@ -695,10 +695,10 @@
                     </div>
                     <div class="card-body">
                         <div class="d-grid gap-2">
-                            <button type="button" class="btn btn-success w-100 mb-2" id="generateTestBtn" onclick="generateTestData()">
+                            <button type="button" class="btn btn-success w-100 mb-2" id="generateTestBtn">
                                 <i class="fas fa-magic"></i> Generate Test Data
                             </button>
-                            <button type="button" class="btn btn-warning w-100 mb-2" id="rebuildIndexBtn" onclick="rebuildIndex()">
+                            <button type="button" class="btn btn-warning w-100 mb-2" id="rebuildIndexBtn">
                                 <i class="fas fa-sync"></i> Rebuild Index
                             </button>
                             <button type="button" class="btn btn-info w-100 mb-2" onclick="checkDebugInfo()">
@@ -906,13 +906,19 @@
             document.getElementById('generateTestBtn').addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
+                e.stopImmediatePropagation();
+                console.log('Generate Test Data button clicked - preventing navigation');
                 generateTestData();
+                return false;
             });
             
             document.getElementById('rebuildIndexBtn').addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
+                e.stopImmediatePropagation();
+                console.log('Rebuild Index button clicked - preventing navigation');
                 rebuildIndex();
+                return false;
             });
             
             // Auto-refresh status
@@ -1606,10 +1612,12 @@
                 if (data.success) {
                     // Show success message
                     showAlert('success', `✅ ${data.message}`);
-                    // Refresh the page to show updated results
+                    // Update the page content without refreshing
+                    updateScreenshotCount(data.count);
+                    // Optionally refresh just the screenshots section
                     setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
+                        location.reload();
+                    }, 2000);
                 } else {
                     showAlert('danger', `❌ Test data generation failed: ${data.error}`);
                 }
@@ -1625,6 +1633,8 @@
         }
 
         async function rebuildIndex() {
+            console.log('rebuildIndex function called');
+            
             const rebuildBtn = document.getElementById('rebuildIndexBtn');
             if (rebuildBtn) {
                 rebuildBtn.disabled = true;
@@ -1632,6 +1642,7 @@
             }
 
             try {
+                console.log('Making fetch request to /rebuild_index');
                 const response = await fetch('/rebuild_index', {
                     method: 'POST',
                     headers: {
@@ -1639,25 +1650,37 @@
                     },
                 });
 
+                console.log('Response received:', response);
                 const data = await response.json();
+                console.log('Data received:', data);
                 
                 if (data.success) {
                     // Show success message
                     showAlert('success', `✅ ${data.message}`);
-                    // Refresh the page to show updated results
+                    // Update the page content without refreshing
+                    updateScreenshotCount();
+                    // Optionally refresh just the screenshots section
                     setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
+                        location.reload();
+                    }, 2000);
                 } else {
                     showAlert('danger', `❌ Index rebuild failed: ${data.error}`);
                 }
             } catch (error) {
+                console.error('Error in rebuildIndex:', error);
                 showAlert('danger', `❌ Request failed: ${error.message}`);
             } finally {
                 if (rebuildBtn) {
                     rebuildBtn.disabled = false;
                     rebuildBtn.innerHTML = '<i class="fas fa-sync"></i> Rebuild Index';
                 }
+            }
+        }
+
+        function updateScreenshotCount(count) {
+            const countBadge = document.getElementById('screenshotCount');
+            if (countBadge && count) {
+                countBadge.textContent = count;
             }
         }
 
