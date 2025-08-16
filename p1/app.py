@@ -13,6 +13,8 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 from werkzeug.utils import secure_filename
 import time
 from dotenv import load_dotenv
+from datetime import timedelta
+import openai
 
 # Add the current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -36,6 +38,15 @@ logger = logging.getLogger(__name__)
 # Flask app configuration
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
+
+# Session configuration
+app.config.update(
+    SESSION_COOKIE_SECURE=False,  # Set to True in production with HTTPS
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_PATH='/',
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=24)
+)
 
 # Configuration
 UPLOAD_FOLDER = 'uploads'
@@ -395,6 +406,96 @@ def serve_image(filename):
     except Exception as e:
         logger.error(f"Failed to serve image {filename}: {e}")
         return jsonify({'error': 'Failed to serve image'}), 500
+
+@app.route('/test_session')
+def test_session():
+    """Test if session is working properly."""
+    if 'user_id' not in session:
+        return jsonify({
+            'authenticated': False,
+            'message': 'No session found',
+            'session_data': dict(session)
+        }), 401
+    
+    return jsonify({
+        'authenticated': True,
+        'user_id': session.get('user_id'),
+        'username': session.get('username'),
+        'session_data': dict(session),
+        'message': 'Session is working properly'
+    })
+
+@app.route('/test_openai_key', methods=['POST'])
+def test_openai_key():
+    """Test OpenAI API key from UI."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    try:
+        data = request.get_json()
+        api_key = data.get('api_key')
+        
+        if not api_key:
+            return jsonify({'error': 'API key is required'}), 400
+        
+        # Test the API key by making a simple OpenAI call
+        # Create httpx client without proxies to avoid configuration issues
+        import httpx
+        http_client = httpx.Client()
+        client = openai.OpenAI(api_key=api_key, http_client=http_client)
+        
+        # Make a simple test call
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "Hello"}],
+            max_tokens=5
+        )
+        
+        if response.choices and response.choices[0].message.content:
+            return jsonify({
+                'success': True,
+                'message': 'OpenAI API key is valid and working'
+            })
+        else:
+            return jsonify({'error': 'Invalid response from OpenAI API'}), 400
+            
+    except Exception as e:
+        logger.error(f"OpenAI API key test failed: {e}")
+        return jsonify({'error': f'API key test failed: {str(e)}'}), 500
+
+@app.route('/save_openai_key', methods=['POST'])
+def save_openai_key():
+    """Save OpenAI API key from UI."""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    try:
+        data = request.get_json()
+        api_key = data.get('api_key')
+        
+        if not api_key:
+            return jsonify({'error': 'API key is required'}), 400
+        
+        # Save the API key to environment or session
+        # For now, we'll store it in the session (in production, use secure storage)
+        session['openai_api_key'] = api_key
+        
+        # Also update the search engine if it's initialized
+        if search_engine:
+            # Create httpx client without proxies to avoid configuration issues
+            import httpx
+            http_client = httpx.Client()
+            search_engine.openai_client = openai.OpenAI(api_key=api_key, http_client=http_client)
+            search_engine.use_openai = True
+        
+        return jsonify({
+            'success': True,
+            'message': 'OpenAI API key saved successfully'
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to save OpenAI API key: {e}")
+        return jsonify({'error': f'Failed to save API key: {str(e)}'}), 500
 
 def find_available_port(start_port=8000):
     """Find an available port starting from start_port."""

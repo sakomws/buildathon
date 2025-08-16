@@ -79,21 +79,29 @@ class VisualMemorySearch:
             
             api_key = os.getenv('OPENAI_API_KEY')
             if api_key:
-                openai.api_key = api_key
-                self.openai_client = openai
-                # Test the connection
+                # Create client with minimal parameters to avoid configuration issues
                 try:
-                    # Simple test call to verify API key works
-                    test_response = openai.ChatCompletion.create(
-                        model="gpt-3.5-turbo",
-                        messages=[{"role": "user", "content": "Hello"}],
-                        max_tokens=100
-                    )
-                    logger.info("OpenAI API configured successfully")
-                    return True
+                    # Create httpx client without proxies to avoid configuration issues
+                    import httpx
+                    http_client = httpx.Client()
+                    self.openai_client = openai.OpenAI(api_key=api_key, http_client=http_client)
+                    
+                    # Test the connection
+                    try:
+                        # Simple test call to verify API key works
+                        test_response = self.openai_client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[{"role": "user", "content": "Hello"}],
+                            max_tokens=100
+                        )
+                        logger.info("OpenAI API configured successfully")
+                        return True
+                    except Exception as e:
+                        logger.warning(f"OpenAI API test failed: {e}")
+                        self.openai_client = None
+                        return False
                 except Exception as e:
-                    logger.warning(f"OpenAI API test failed: {e}")
-                    self.openai_client = None
+                    logger.error(f"Failed to create OpenAI client: {e}")
                     return False
             else:
                 logger.info("OpenAI API key not found, using local models")
@@ -138,6 +146,10 @@ class VisualMemorySearch:
                 self.screenshots_data = json.load(f)
             
             self.index = np.load(self.embeddings_file)
+            
+            # Clean up any existing data that might contain numpy types
+            self._cleanup_screenshot_data()
+            
             logger.info(f"Loaded index with {len(self.screenshots_data)} screenshots")
             
         except Exception as e:
@@ -167,6 +179,8 @@ class VisualMemorySearch:
                 logger.error(f"Failed to process {screenshot_file}: {e}")
         
         if self.screenshots_data:
+            # Clean up data before building index
+            self._cleanup_screenshot_data()
             self._build_search_index()
             self._save_index()
             logger.info(f"Index created with {len(self.screenshots_data)} screenshots")
@@ -186,17 +200,17 @@ class VisualMemorySearch:
             # Enhanced blue button detection
             blue_button_info = self._detect_blue_buttons_enhanced(file_path)
             
-            # Create screenshot data
+            # Create screenshot data - ensure all values are JSON serializable
             screenshot_data = {
                 "file_path": str(file_path),
-                "filename": file_path.name,
-                "ocr_text": ocr_text,
-                "visual_description": visual_description,
-                "file_size": file_path.stat().st_size,
-                "dimensions": image.size,
-                "blue_button_detected": blue_button_info['detected'],
-                "blue_button_count": blue_button_info['count'],
-                "blue_button_details": blue_button_info['details']
+                "filename": str(file_path.name),  # Ensure filename is string
+                "ocr_text": str(ocr_text) if ocr_text else "",
+                "visual_description": str(visual_description) if visual_description else "",
+                "file_size": int(file_path.stat().st_size),
+                "dimensions": tuple(int(d) for d in image.size),  # Convert to tuple of ints
+                "blue_button_detected": bool(blue_button_info['detected']),
+                "blue_button_count": int(blue_button_info['count']),
+                "blue_button_details": str(blue_button_info['details']) if blue_button_info['details'] else ""
             }
             
             logger.info(f"Processed {file_path.name}: blue_button={blue_button_info['detected']}, count={blue_button_info['count']}")
@@ -631,6 +645,9 @@ class VisualMemorySearch:
                 ([110, 70, 70], [140, 255, 255]),      # Lighter blue
                 ([90, 90, 90], [120, 255, 255]),       # Darker blue
                 ([100, 60, 60], [130, 255, 200]),      # Desaturated blue
+                # Extended ranges for better coverage
+                ([95, 50, 50], [135, 255, 255]),       # Wider blue range
+                ([105, 40, 40], [125, 255, 180]),      # Lower saturation threshold
             ]
             
             # Check blue with multiple ranges and lower threshold
@@ -703,17 +720,55 @@ class VisualMemorySearch:
     def _save_index(self):
         """Save index to files."""
         try:
+            # Debug: Check each field for non-serializable types
+            logger.info("Checking screenshot data for JSON serialization...")
+            for i, data in enumerate(self.screenshots_data):
+                for key, value in data.items():
+                    try:
+                        # Test JSON serialization of this specific field
+                        json.dumps({key: value})
+                    except (TypeError, OverflowError) as e:
+                        logger.error(f"Field '{key}' in screenshot {i} ({data.get('filename', 'unknown')}) is not JSON serializable: {type(value)} = {value}")
+                        logger.error(f"Serialization error: {e}")
+                        # Try to convert common numpy types
+                        if hasattr(value, 'tolist'):  # numpy array
+                            data[key] = value.tolist()
+                            logger.info(f"Converted numpy array to list for field '{key}'")
+                        elif hasattr(value, 'item'):  # numpy scalar
+                            data[key] = value.item()
+                            logger.info(f"Converted numpy scalar to Python type for field '{key}'")
+                        else:
+                            # Convert to string as fallback
+                            data[key] = str(value)
+                            logger.info(f"Converted field '{key}' to string as fallback")
+            
             # Save metadata
             with open(self.index_file, 'w') as f:
                 json.dump(self.screenshots_data, f, indent=2)
             
-            # Save embeddings
-            np.save(self.embeddings_file, self.index)
-            
-            logger.info("Index saved successfully")
+            # Save embeddings only if they exist
+            if self.index is not None:
+                np.save(self.embeddings_file, self.index)
+                logger.info("Index and embeddings saved successfully")
+            else:
+                logger.warning("No embeddings to save")
+                logger.info("Metadata index saved successfully")
             
         except Exception as e:
             logger.error(f"Failed to save index: {e}")
+            # Log more details about the error
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+            # Additional debugging: try to identify the problematic data
+            try:
+                logger.info("Attempting to identify problematic data...")
+                for i, data in enumerate(self.screenshots_data):
+                    logger.info(f"Screenshot {i}: {data.get('filename', 'unknown')}")
+                    for key, value in data.items():
+                        logger.info(f"  {key}: {type(value)} = {value}")
+            except Exception as debug_e:
+                logger.error(f"Debug logging failed: {debug_e}")
     
     def search(self, query: str, top_k: int = 5) -> List[Dict]:
         """Search for screenshots using natural language query with enhanced semantic search and OpenAI validation."""
@@ -736,16 +791,21 @@ class VisualMemorySearch:
             # Calculate similarities for ALL images
             similarities = []
             for i, data in enumerate(self.screenshots_data):
-                if 'embedding' in data:
-                    similarity = cosine_similarity([query_embedding], [data['embedding']])[0][0]
-                    similarities.append(similarity)
+                # Generate embedding if not present in the separate index
+                if i < len(self.index):
+                    similarity = cosine_similarity([query_embedding], [self.index[i]])[0][0]
                 else:
                     # Generate embedding if not present
                     combined_text = f"{data['ocr_text']} {data['visual_description']}"
                     embedding = self.embedding_model.encode([combined_text])[0]
-                    data['embedding'] = embedding
-                    similarities.append(cosine_similarity([query_embedding], [embedding])[0][0])
+                    # Store embedding in the separate index, not in screenshots_data
+                    if self.index is None:
+                        self.index = np.array([embedding])
+                    else:
+                        self.index = np.vstack([self.index, embedding])
+                    similarity = cosine_similarity([query_embedding], [embedding])[0][0]
                     logger.info(f"Generated embedding for image {i+1}/{len(self.screenshots_data)}: {data['filename']}")
+                similarities.append(similarity)
             
             # Enhanced confidence scoring with semantic analysis for ALL images
             boosted_similarities = self._boost_visual_matches(query, similarities)
@@ -768,16 +828,16 @@ class VisualMemorySearch:
             for idx in top_indices:
                 if semantic_boosted[idx] > 0:  # Only include relevant results
                     result = {
-                        "filename": self.screenshots_data[idx]["filename"],
-                        "file_path": self.screenshots_data[idx]["file_path"],
+                        "filename": str(self.screenshots_data[idx]["filename"]),
+                        "file_path": str(self.screenshots_data[idx]["file_path"]),
                         "confidence_score": float(semantic_boosted[idx]),
-                        "ocr_text": self.screenshots_data[idx]["ocr_text"][:200] + "..." if len(self.screenshots_data[idx]["ocr_text"]) > 200 else self.screenshots_data[idx]["ocr_text"],
-                        "visual_description": self.screenshots_data[idx]["visual_description"],
-                        "dimensions": self.screenshots_data[idx]["dimensions"],
-                        "semantic_tags": self._extract_semantic_tags(self.screenshots_data[idx]["visual_description"]),
-                        "ui_patterns": self._extract_ui_patterns_from_description(self.screenshots_data[idx]["visual_description"]),
-                        "content_types": self._extract_content_types_from_description(self.screenshots_data[idx]["visual_description"]),
-                        "rank": len(results) + 1,  # Add ranking information
+                        "ocr_text": str(self.screenshots_data[idx]["ocr_text"])[:200] + "..." if len(str(self.screenshots_data[idx]["ocr_text"])) > 200 else str(self.screenshots_data[idx]["ocr_text"]),
+                        "visual_description": str(self.screenshots_data[idx]["visual_description"]),
+                        "dimensions": tuple(int(d) for d in self.screenshots_data[idx]["dimensions"]),
+                        "semantic_tags": list(self._extract_semantic_tags(self.screenshots_data[idx]["visual_description"])),
+                        "ui_patterns": list(self._extract_ui_patterns_from_description(self.screenshots_data[idx]["visual_description"])),
+                        "content_types": list(self._extract_content_types_from_description(self.screenshots_data[idx]["visual_description"])),
+                        "rank": int(len(results) + 1),  # Add ranking information
                         "openai_score": None,  # Will be populated by validation
                         "openai_explanation": None,
                         "openai_tags": [],
@@ -1144,6 +1204,8 @@ class VisualMemorySearch:
             screenshot_data = self._process_screenshot(Path(file_path))
             if screenshot_data:
                 self.screenshots_data.append(screenshot_data)
+                # Clean up data before building index
+                self._cleanup_screenshot_data()
                 self._build_search_index()
                 self._save_index()
                 logger.info(f"Added screenshot: {file_path}")
@@ -1170,7 +1232,7 @@ class VisualMemorySearch:
         for attempt in range(max_retries):
             try:
                 logger.info(f"OpenAI API call attempt {attempt + 1}/{max_retries}")
-                response = openai.ChatCompletion.create(messages=messages, **kwargs)
+                response = self.openai_client.chat.completions.create(messages=messages, **kwargs)
                 logger.info(f"OpenAI API call successful on attempt {attempt + 1}")
                 return response
             except Exception as e:
@@ -1516,18 +1578,28 @@ class VisualMemorySearch:
             details = f"Blue pixels: {blue_percentage:.1f}%, Buttons: {len(buttons)}, Blue buttons: {len(blue_buttons)}"
             
             if blue_buttons:
-                locations = [f'({b["bbox"][0]},{b["bbox"][1]})' for b in blue_buttons]
+                # Convert numpy arrays to lists for JSON serialization
+                locations = [f'({int(b["bbox"][0])},{int(b["bbox"][1])})' for b in blue_buttons]
                 details += f" - Locations: {locations}"
             
             logger.info(f"Blue button detection for {file_path.name}: {details}")
             
+            # Ensure all values are JSON serializable
+            serializable_blue_buttons = []
+            for button in blue_buttons:
+                serializable_blue_buttons.append({
+                    'bbox': [int(x) for x in button['bbox']],  # Convert numpy int64 to Python int
+                    'blue_percentage': float(button['blue_percentage']),  # Convert numpy float64 to Python float
+                    'confidence': float(button['confidence'])  # Convert numpy float64 to Python float
+                })
+            
             return {
-                'detected': detected,
-                'count': len(blue_buttons),
-                'details': details,
-                'blue_percentage': blue_percentage,
-                'total_buttons': len(buttons),
-                'blue_buttons': blue_buttons
+                'detected': bool(detected),
+                'count': int(len(blue_buttons)),
+                'details': str(details),
+                'blue_percentage': float(blue_percentage),
+                'total_buttons': int(len(buttons)),
+                'blue_buttons': serializable_blue_buttons
             }
             
         except Exception as e:
@@ -1582,10 +1654,10 @@ class VisualMemorySearch:
                             aspect_ratio = w / h
                             if 0.5 <= aspect_ratio <= 4.0:  # Reasonable button proportions
                                 buttons.append({
-                                    'bbox': (x, y, w, h),
-                                    'confidence': confidence,
-                                    'area': area,
-                                    'aspect_ratio': aspect_ratio
+                                    'bbox': (int(x), int(y), int(w), int(h)),  # Convert to Python int
+                                    'confidence': float(confidence),  # Convert to Python float
+                                    'area': float(area),  # Convert to Python float
+                                    'aspect_ratio': float(aspect_ratio)  # Convert to Python float
                                 })
             
             # Sort by confidence
@@ -1597,6 +1669,45 @@ class VisualMemorySearch:
         except Exception as e:
             logger.error(f"Enhanced button detection failed: {e}")
             return []
+
+    def _cleanup_screenshot_data(self):
+        """Clean up screenshot data to ensure all values are JSON serializable."""
+        logger.info("Cleaning up screenshot data for JSON serialization...")
+        cleaned_count = 0
+        
+        for i, data in enumerate(self.screenshots_data):
+            for key, value in list(data.items()):
+                try:
+                    # Test JSON serialization
+                    json.dumps({key: value})
+                except (TypeError, OverflowError):
+                    # Convert non-serializable types
+                    if hasattr(value, 'tolist'):  # numpy array
+                        data[key] = value.tolist()
+                        cleaned_count += 1
+                        logger.info(f"Converted numpy array to list for field '{key}' in {data.get('filename', 'unknown')}")
+                    elif hasattr(value, 'item'):  # numpy scalar
+                        data[key] = value.item()
+                        cleaned_count += 1
+                        logger.info(f"Converted numpy scalar to Python type for field '{key}' in {data.get('filename', 'unknown')}")
+                    elif isinstance(value, np.integer):
+                        data[key] = int(value)
+                        cleaned_count += 1
+                        logger.info(f"Converted numpy integer to Python int for field '{key}' in {data.get('filename', 'unknown')}")
+                    elif isinstance(value, np.floating):
+                        data[key] = float(value)
+                        cleaned_count += 1
+                        logger.info(f"Converted numpy float to Python float for field '{key}' in {data.get('filename', 'unknown')}")
+                    else:
+                        # Convert to string as fallback
+                        data[key] = str(value)
+                        cleaned_count += 1
+                        logger.info(f"Converted field '{key}' to string as fallback in {data.get('filename', 'unknown')}")
+        
+        if cleaned_count > 0:
+            logger.info(f"Cleaned up {cleaned_count} non-serializable values")
+        else:
+            logger.info("No cleanup needed - all data is already JSON serializable")
 
 def main():
     """Main function to run the visual memory search application."""

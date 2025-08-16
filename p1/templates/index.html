@@ -380,11 +380,43 @@
             backdrop-filter: blur(10px);
         }
 
-        .input-group-lg .form-control:focus {
-            border-color: rgba(255, 255, 255, 0.8);
-            box-shadow: 0 0 0 0.3rem rgba(255, 255, 255, 0.25);
-            background: rgba(255, 255, 255, 1);
-            transform: scale(1.02);
+        /* System control buttons - ensure no form behavior */
+        .btn[data-prevent-default="true"] {
+            pointer-events: auto !important;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            position: relative;
+            z-index: 1000;
+            /* Completely isolate from forms */
+            form: none !important;
+            formaction: none !important;
+            formmethod: none !important;
+            formenctype: none !important;
+            formtarget: none !important;
+            /* Prevent any submission */
+            type: button !important;
+        }
+
+        .btn[data-prevent-default="true"]:active {
+            transform: scale(0.98);
+        }
+
+        .btn[data-prevent-default="true"]:focus {
+            outline: none !important;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
+        }
+
+        /* Nuclear option: Prevent any form submission behavior */
+        .btn[data-prevent-default="true"] {
+            pointer-events: auto !important;
+            cursor: pointer !important;
+        }
+
+        /* Override any Bootstrap or other framework behavior */
+        .btn[data-prevent-default="true"][type="button"] {
+            pointer-events: auto !important;
         }
 
         .input-group-lg .btn {
@@ -649,17 +681,74 @@
 
         <!-- Control Panel -->
         <div class="row mb-4">
+            <!-- OpenAI Status Display -->
+            <div class="col-12 mb-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-robot"></i> OpenAI Status
+                            <span class="badge" id="openaiStatusBadge">Checking...</span>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="openaiStatusContent">
+                            <div class="d-flex align-items-center">
+                                <div class="spinner-border spinner-border-sm me-2" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <span>Checking OpenAI availability...</span>
+                            </div>
+                        </div>
+                        
+                        <!-- OpenAI API Key Input -->
+                        <div class="mt-3 pt-3 border-top">
+                            <h6 class="mb-2">
+                                <i class="fas fa-key"></i> Add Your OpenAI API Key
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="input-group">
+                                        <input type="password" 
+                                               class="form-control" 
+                                               id="openaiApiKeyInput" 
+                                               placeholder="sk-... (Your OpenAI API key)"
+                                               autocomplete="off">
+                                        <button class="btn btn-outline-primary" 
+                                                type="button" 
+                                                data-action="test-openai-key">
+                                            <i class="fas fa-vial"></i> Test Key
+                                        </button>
+                                        <button class="btn btn-outline-success" 
+                                                type="button" 
+                                                data-action="save-openai-key">
+                                            <i class="fas fa-save"></i> Save
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Get your key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>
+                                    </small>
+                                </div>
+                            </div>
+                            <div id="openaiKeyStatus" class="mt-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
                         <h5 class="mb-0"><i class="fas fa-upload"></i> Upload Screenshots</h5>
                     </div>
                     <div class="card-body">
-                        <form action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data" id="uploadForm">
+                        <form action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data" id="uploadForm" onsubmit="return false;">
                             <div class="upload-area" id="uploadArea">
                                 <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
                                 <p class="mb-2">Drag & drop screenshots here or click to browse</p>
-                                <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
+                                <button type="button" class="btn btn-outline-primary" data-action="choose-file">
                                     Choose File
                                 </button>
                             </div>
@@ -668,13 +757,13 @@
                             <!-- Add folder input -->
                             <input type="file" id="folderInput" class="d-none" webkitdirectory directory multiple>
                             <div class="mt-3">
-                                <button type="submit" class="btn btn-primary" id="uploadBtn" onclick="handleUploadClick(event)">
+                                <button type="button" class="btn btn-primary" id="uploadBtn" data-action="upload-file">
                                     <i class="fas fa-upload"></i> Upload & Index
                                 </button>
-                                <button type="button" class="btn btn-outline-primary ms-2" onclick="document.getElementById('folderInput').click()">
+                                <button type="button" class="btn btn-outline-primary ms-2" data-action="choose-folder">
                                     <i class="fas fa-folder-open"></i> Upload Folder
                                 </button>
-                                <button type="button" class="btn btn-outline-secondary ms-2" onclick="testFileInput()">
+                                <button type="button" class="btn btn-outline-secondary ms-2" data-action="test-file-input">
                                     <i class="fas fa-vial"></i> Test File Input
                                 </button>
                             </div>
@@ -695,16 +784,20 @@
                     </div>
                     <div class="card-body">
                         <div class="d-grid gap-2">
-                            <button type="button" class="btn btn-success w-100 mb-2" id="generateTestBtn">
+                            <button type="button" class="btn btn-success w-100 mb-2" 
+                                    data-action="generate-test-data">
                                 <i class="fas fa-magic"></i> Generate Test Data
                             </button>
-                            <button type="button" class="btn btn-warning w-100 mb-2" id="rebuildIndexBtn">
+                            <button type="button" class="btn btn-warning w-100 mb-2" 
+                                    data-action="rebuild-index">
                                 <i class="fas fa-sync"></i> Rebuild Index
                             </button>
-                            <button type="button" class="btn btn-info w-100 mb-2" onclick="checkDebugInfo()">
+                            <button type="button" class="btn btn-info w-100 mb-2" 
+                                    data-action="debug-info">
                                 <i class="fas fa-bug"></i> Debug Info
                             </button>
-                            <button type="button" class="btn btn-secondary w-100 mb-2" onclick="debugFileInput()">
+                            <button type="button" class="btn btn-secondary w-100 mb-2" 
+                                    data-action="debug-file-input">
                                 <i class="fas fa-file"></i> Debug File Input
                             </button>
                         </div>
@@ -873,11 +966,84 @@
         let searchTimeout;
         let currentTheme = localStorage.getItem('theme') || 'light';
 
+        // Global form submission interceptor
+        document.addEventListener('submit', function(e) {
+            console.log('Form submission intercepted:', e.target);
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return false;
+        });
+
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
             applyTheme(currentTheme);
             checkStatus();
             setupEventListeners();
+            
+            // Check authentication status
+            checkAuthentication();
+            
+            // NUCLEAR OPTION: Only prevent system control buttons from redirecting
+            document.addEventListener('click', function(e) {
+                const target = e.target.closest('button');
+                if (!target) return;
+                
+                console.log('Button clicked:', target.textContent.trim(), 'Type:', target.type, 'Action:', target.getAttribute('data-action'));
+                
+                // Only block system control buttons that cause redirects
+                if (target.hasAttribute('data-action')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    
+                    const action = target.getAttribute('data-action');
+                    console.log('System control button clicked:', action);
+                    
+                    // Handle all button actions
+                    if (action === 'generate-test-data') {
+                        generateTestData();
+                    } else if (action === 'rebuild-index') {
+                        rebuildIndex();
+                    } else if (action === 'debug-info') {
+                        checkDebugInfo();
+                    } else if (action === 'debug-file-input') {
+                        debugFileInput();
+                    } else if (action === 'choose-file') {
+                        document.getElementById('fileInput').click();
+                    } else if (action === 'choose-folder') {
+                        document.getElementById('folderInput').click();
+                    } else if (action === 'upload-file') {
+                        handleUploadClick(e);
+                    } else if (action === 'test-file-input') {
+                        testFileInput();
+                    } else if (action === 'test-openai-key') {
+                        testOpenAIKey();
+                    } else if (action === 'save-openai-key') {
+                        saveOpenAIKey();
+                    }
+                    
+                    return false;
+                }
+                
+                // Allow all other buttons to work normally
+                console.log('Button allowed to work normally:', target.textContent.trim());
+            }, true); // Use capture phase to intercept before other handlers
+            
+            // NUCLEAR OPTION 2: Prevent ALL form submissions globally
+            document.addEventListener('submit', function(e) {
+                console.log('Form submission intercepted:', e.target);
+                // Only allow specific forms we want
+                if (e.target.id === 'searchForm' || e.target.id === 'uploadForm' || e.target.id === 'folderForm') {
+                    console.log('Allowing form submission for:', e.target.id);
+                    return true;
+                } else {
+                    console.log('Blocking unexpected form submission');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+            }, true);
             
             // Focus search input on page load
             setTimeout(() => {
@@ -888,6 +1054,27 @@
                 }
             }, 500);
         });
+
+        async function checkAuthentication() {
+            try {
+                const response = await fetch('/status', {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                if (response.status === 401) {
+                    console.log('Authentication failed, redirecting to login');
+                    window.location.href = '/login';
+                } else if (response.ok) {
+                    console.log('Authentication successful');
+                }
+            } catch (error) {
+                console.error('Authentication check failed:', error);
+            }
+        }
 
         function setupEventListeners() {
             // Search form
@@ -901,25 +1088,6 @@
             
             // Folder upload form
             document.getElementById('folderForm').addEventListener('submit', handleFolderUpload);
-            
-            // Prevent form submission on system control buttons
-            document.getElementById('generateTestBtn').addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                console.log('Generate Test Data button clicked - preventing navigation');
-                generateTestData();
-                return false;
-            });
-            
-            document.getElementById('rebuildIndexBtn').addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                console.log('Rebuild Index button clicked - preventing navigation');
-                rebuildIndex();
-                return false;
-            });
             
             // Auto-refresh status
             setInterval(checkStatus, 30000); // Check every 30 seconds
@@ -968,7 +1136,7 @@
             }
         }
 
-        function handleUploadClick(e) {
+        async function handleUploadClick(e) {
             e.preventDefault();
             
             const uploadArea = document.getElementById('uploadArea');
@@ -982,17 +1150,66 @@
                         // Handle folder upload
                         handleFolderUpload(e);
                     } else {
-                        // Handle single file upload - submit the form normally
-                        document.getElementById('uploadForm').submit();
+                        // Handle single file upload using AJAX
+                        await handleSingleFileUpload();
                     }
                 } catch (e) {
                     console.error('Failed to parse stored file info:', e);
-                    // Default to single file upload
-                    document.getElementById('uploadForm').submit();
+                    // Default to single file upload using AJAX
+                    await handleSingleFileUpload();
                 }
             } else {
                 // No file selected, show error
                 alert('Please select a file or folder before uploading.');
+            }
+        }
+
+        async function handleSingleFileUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const uploadBtn = document.getElementById('uploadBtn');
+            
+            if (!fileInput || fileInput.files.length === 0) {
+                alert('Please select a file before uploading.');
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            
+            // Show loading state
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('success', `✅ ${data.message}`);
+                    // Refresh the page to show the new image
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    showAlert('danger', `❌ Upload failed: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                showAlert('danger', `❌ Upload failed: ${error.message}`);
+            } finally {
+                // Reset loading state
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Upload & Index';
             }
         }
 
@@ -1236,7 +1453,9 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
+                    credentials: 'same-origin', // Include cookies/session
                     body: `query=${encodeURIComponent(query)}`
                 });
 
@@ -1276,6 +1495,9 @@
                 return;
             }
 
+            // Get the base URL for images
+            const baseImageUrl = '{{ url_for("serve_image", filename="placeholder") }}'.replace('placeholder', '');
+
             let resultsHTML = `
                 <div class="alert alert-success mb-4">
                     <h6 class="alert-heading"><i class="fas fa-trophy"></i> Top 5 Results Found</h6>
@@ -1305,7 +1527,7 @@
                             <div class="row align-items-center">
                                 <div class="col-md-2 text-center">
                                     <div class="image-container mb-3">
-                                        <img src="/image/${result.filename}" 
+                                        <img src="${baseImageUrl}${result.filename}" 
                                              class="img-fluid rounded" 
                                              style="max-height: 120px; object-fit: contain; border: 2px solid var(--border-color); box-shadow: var(--shadow);"
                                              alt="${result.filename}"
@@ -1416,32 +1638,170 @@
         }
 
         async function checkStatus() {
+            console.log('checkStatus called - checking system status...');
             try {
-                const response = await fetch('/status');
-                const data = await response.json();
+                const response = await fetch('/status', {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin' // Include cookies/session
+                });
                 
-                const statusIndicator = document.getElementById('statusIndicator');
-                const statusText = document.getElementById('statusText');
+                console.log('Status response status:', response.status);
+                
+                if (response.status === 401) {
+                    console.log('User not authenticated, showing login required message');
+                    // User is not authenticated, show appropriate message
+                    const openaiStatusBadge = document.getElementById('openaiStatusBadge');
+                    const openaiStatusContent = document.getElementById('openaiStatusContent');
+                    
+                    if (openaiStatusBadge) {
+                        openaiStatusBadge.className = 'badge bg-secondary';
+                        openaiStatusBadge.textContent = 'Login Required';
+                    }
+                    
+                    if (openaiStatusContent) {
+                        openaiStatusContent.innerHTML = `
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-lock text-muted me-2"></i>
+                                <span>Please log in to check OpenAI status</span>
+                            </div>
+                        `;
+                    }
+                    return;
+                }
+                
+                const data = await response.json();
+                console.log('Status response data:', data);
                 
                 if (data.status === 'ok') {
-                    statusIndicator.className = 'status-indicator status-ok';
-                    statusText.textContent = `${data.total_screenshots} screenshots indexed${data.openai_available ? ' • OpenAI enabled' : ' • OpenAI disabled'}`;
+                    console.log('Status OK, updating display...');
+                    
+                    // Update OpenAI status display
+                    updateOpenAIStatus(data);
                 } else {
-                    statusIndicator.className = 'status-indicator status-error';
-                    statusText.textContent = 'Error: ' + data.message;
+                    console.log('Status not OK:', data.message);
+                    const openaiStatusBadge = document.getElementById('openaiStatusBadge');
+                    const openaiStatusContent = document.getElementById('openaiStatusContent');
+                    
+                    if (openaiStatusBadge) {
+                        openaiStatusBadge.className = 'badge bg-danger';
+                        openaiStatusBadge.textContent = 'Error';
+                    }
+                    
+                    if (openaiStatusContent) {
+                        openaiStatusContent.innerHTML = `
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                                <span>Status Error: ${data.message}</span>
+                            </div>
+                        `;
+                    }
                 }
             } catch (error) {
-                const statusIndicator = document.getElementById('statusIndicator');
-                const statusText = document.getElementById('statusText');
+                console.error('Status check failed:', error);
+                const openaiStatusBadge = document.getElementById('openaiStatusBadge');
+                const openaiStatusContent = document.getElementById('openaiStatusContent');
                 
-                statusIndicator.className = 'status-indicator status-warning';
-                statusText.textContent = 'Status check failed';
+                if (openaiStatusBadge) {
+                    openaiStatusBadge.className = 'badge bg-secondary';
+                    openaiStatusBadge.textContent = 'Error';
+                }
+                
+                if (openaiStatusContent) {
+                    openaiStatusContent.innerHTML = `
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                            <span>Status check failed: ${error.message}</span>
+                        </div>
+                    `;
+                }
             }
+        }
+
+        function updateOpenAIStatus(data) {
+            console.log('updateOpenAIStatus called with data:', data);
+            const openaiStatusBadge = document.getElementById('openaiStatusBadge');
+            const openaiStatusContent = document.getElementById('openaiStatusContent');
+            
+            console.log('Found elements:', { openaiStatusBadge, openaiStatusContent });
+            
+            if (data.openai_available) {
+                console.log('OpenAI is available, updating to success state');
+                openaiStatusBadge.className = 'badge bg-success';
+                openaiStatusBadge.textContent = 'Available';
+                
+                openaiStatusContent.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-check-circle text-success me-2"></i>
+                                <strong>OpenAI API is working</strong>
+                            </div>
+                            <p class="mb-2">GPT-4 Vision is available for enhanced image analysis</p>
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                All search results will include OpenAI validation scores
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-images text-primary me-2"></i>
+                                <strong>${data.total_screenshots} screenshots indexed</strong>
+                            </div>
+                            <p class="mb-2">Search index is ready with OpenAI-enhanced results</p>
+                            <small class="text-muted">
+                                <i class="fas fa-search me-1"></i>
+                                Try searching for "blue button" or "login form"
+                            </small>
+                        </div>
+                    </div>
+                `;
+            } else {
+                console.log('OpenAI is not available, updating to warning state');
+                openaiStatusBadge.className = 'badge bg-warning';
+                openaiStatusBadge.textContent = 'Unavailable';
+                
+                openaiStatusContent.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                                <strong>OpenAI API is not available</strong>
+                            </div>
+                            <p class="mb-2">Basic search will work without AI enhancement</p>
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Check your API key and internet connection
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-images text-primary me-2"></i>
+                                <strong>${data.total_screenshots} screenshots indexed</strong>
+                            </div>
+                            <p class="mb-2">Search index is ready with basic OCR and visual features</p>
+                            <small class="text-muted">
+                                <i class="fas fa-search me-1"></i>
+                                Search results will use base algorithm only
+                            </small>
+                        </div>
+                    </div>
+                `;
+            }
+            console.log('OpenAI status update completed');
         }
 
         async function checkDebugInfo() {
             try {
-                const response = await fetch('/debug');
+                const response = await fetch('/debug', {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin' // Include cookies/session
+                });
                 const data = await response.json();
                 alert('Debug Info:\n' + JSON.stringify(data, null, 2));
             } catch (error) {
@@ -1590,7 +1950,7 @@
         async function generateTestData() {
             console.log('generateTestData function called');
             
-            const generateBtn = document.getElementById('generateTestBtn');
+            const generateBtn = document.querySelector('.btn[data-action="generate-test-data"]');
             if (generateBtn) {
                 generateBtn.disabled = true;
                 generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
@@ -1602,7 +1962,10 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
+                    credentials: 'same-origin', // Include cookies/session
+                    body: 'action=generate'
                 });
 
                 console.log('Response received:', response);
@@ -1635,7 +1998,7 @@
         async function rebuildIndex() {
             console.log('rebuildIndex function called');
             
-            const rebuildBtn = document.getElementById('rebuildIndexBtn');
+            const rebuildBtn = document.querySelector('.btn[data-action="rebuild-index"]');
             if (rebuildBtn) {
                 rebuildBtn.disabled = true;
                 rebuildBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rebuilding...';
@@ -1647,7 +2010,10 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
+                    credentials: 'same-origin', // Include cookies/session
+                    body: 'action=rebuild'
                 });
 
                 console.log('Response received:', response);
@@ -1704,6 +2070,108 @@
                         alertDiv.remove();
                     }
                 }, 5000);
+            }
+        }
+
+        async function testOpenAIKey() {
+            const apiKeyInput = document.getElementById('openaiApiKeyInput');
+            const testBtn = document.querySelector('[data-action="test-openai-key"]');
+            const statusDiv = document.getElementById('openaiKeyStatus');
+            
+            if (!apiKeyInput.value.trim()) {
+                showAlert('warning', '⚠️ Please enter an OpenAI API key first');
+                return;
+            }
+            
+            // Show loading state
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+            statusDiv.innerHTML = '<div class="text-info"><i class="fas fa-spinner fa-spin"></i> Testing API key...</div>';
+            
+            try {
+                const response = await fetch('/test_openai_key', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ api_key: apiKeyInput.value.trim() })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusDiv.innerHTML = '<div class="text-success"><i class="fas fa-check-circle"></i> API key is valid! OpenAI is now available.</div>';
+                    showAlert('success', '✅ OpenAI API key is valid and working!');
+                    // Refresh status to show OpenAI is now available
+                    setTimeout(() => {
+                        checkStatus();
+                    }, 1000);
+                } else {
+                    statusDiv.innerHTML = `<div class="text-danger"><i class="fas fa-exclamation-triangle"></i> ${data.error}</div>`;
+                    showAlert('danger', `❌ API key test failed: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('API key test error:', error);
+                statusDiv.innerHTML = '<div class="text-danger"><i class="fas fa-exclamation-triangle"></i> Failed to test API key</div>';
+                showAlert('danger', `❌ Failed to test API key: ${error.message}`);
+            } finally {
+                // Reset loading state
+                testBtn.disabled = false;
+                testBtn.innerHTML = '<i class="fas fa-vial"></i> Test Key';
+            }
+        }
+
+        async function saveOpenAIKey() {
+            const apiKeyInput = document.getElementById('openaiApiKeyInput');
+            const saveBtn = document.querySelector('[data-action="save-openai-key"]');
+            const statusDiv = document.getElementById('openaiKeyStatus');
+            
+            if (!apiKeyInput.value.trim()) {
+                showAlert('warning', '⚠️ Please enter an OpenAI API key first');
+                return;
+            }
+            
+            // Show loading state
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            statusDiv.innerHTML = '<div class="text-info"><i class="fas fa-spinner fa-spin"></i> Saving API key...</div>';
+            
+            try {
+                const response = await fetch('/save_openai_key', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ api_key: apiKeyInput.value.trim() })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusDiv.innerHTML = '<div class="text-success"><i class="fas fa-check-circle"></i> API key saved successfully!</div>';
+                    showAlert('success', '✅ OpenAI API key saved successfully!');
+                    // Clear the input for security
+                    apiKeyInput.value = '';
+                    // Refresh status
+                    setTimeout(() => {
+                        checkStatus();
+                    }, 1000);
+                } else {
+                    statusDiv.innerHTML = `<div class="text-danger"><i class="fas fa-exclamation-triangle"></i> ${data.error}</div>`;
+                    showAlert('danger', `❌ Failed to save API key: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Save API key error:', error);
+                statusDiv.innerHTML = '<div class="text-danger"><i class="fas fa-exclamation-triangle"></i> Failed to save API key</div>';
+                showAlert('danger', `❌ Failed to save API key: ${error.message}`);
+            } finally {
+                // Reset loading state
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save';
             }
         }
     </script>
