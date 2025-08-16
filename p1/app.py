@@ -6,6 +6,7 @@ A Flask web application for testing the visual memory search system.
 
 import os
 import sys
+import socket
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, flash, redirect, url_for
 from werkzeug.utils import secure_filename
@@ -42,6 +43,17 @@ search_engine = None
 def allowed_file(filename):
     """Check if file extension is allowed."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def find_available_port(start_port=8000, max_attempts=100):
+    """Find an available port starting from start_port."""
+    for port in range(start_port, start_port + max_attempts):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('localhost', port))
+                return port
+        except OSError:
+            continue
+    return None
 
 def init_search_engine():
     """Initialize the search engine."""
@@ -138,6 +150,10 @@ def upload_file():
     global search_engine
     
     logger.info("Upload request received")
+    logger.info(f"Request method: {request.method}")
+    logger.info(f"Request content type: {request.content_type}")
+    logger.info(f"Request files: {list(request.files.keys()) if request.files else 'No files'}")
+    logger.info(f"Request form: {list(request.form.keys()) if request.form else 'No form data'}")
     
     if search_engine is None:
         logger.error("Search engine not initialized for upload")
@@ -150,11 +166,14 @@ def upload_file():
         # Check if file was sent
         if 'file' not in request.files:
             logger.error("No file in request")
+            logger.error(f"Available keys: {list(request.files.keys()) if request.files else 'None'}")
             flash('No file selected', 'error')
             return redirect(url_for('index'))
         
         file = request.files['file']
         logger.info(f"File received: {file.filename}")
+        logger.info(f"File content type: {file.content_type}")
+        logger.info(f"File size: {file.content_length if hasattr(file, 'content_length') else 'Unknown'}")
         
         if file.filename == '':
             logger.error("Empty filename")
@@ -402,5 +421,17 @@ if __name__ == '__main__':
     # Create uploads directory if it doesn't exist
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
+    # Find available port
+    port = find_available_port(8000)
+    if port is None:
+        logger.error("No available ports found in range 8000-8099")
+        sys.exit(1)
+    
+    print(f"🚀 Starting Visual Memory Search Web UI...")
+    print(f"🌐 Server will be available at: http://localhost:{port}")
+    print(f"📱 Open your browser and navigate to the URL above")
+    print(f"⏹️  Press Ctrl+C to stop the server")
+    print("-" * 60)
+    
     # Run the app
-    app.run(debug=True, host='0.0.0.0', port=8000) 
+    app.run(debug=True, host='0.0.0.0', port=port) 

@@ -259,8 +259,50 @@
             // File upload
             setupFileUpload();
             
+            // Upload form validation
+            document.getElementById('uploadForm').addEventListener('submit', validateUploadForm);
+            
             // Auto-refresh status
             setInterval(checkStatus, 30000); // Check every 30 seconds
+        }
+
+        function validateUploadForm(e) {
+            const fileInput = document.getElementById('fileInput');
+            const uploadArea = document.getElementById('uploadArea');
+            
+            // Check if file input has a file
+            if (!fileInput || fileInput.files.length === 0) {
+                e.preventDefault();
+                
+                // Check if we have a stored file reference
+                const storedFile = uploadArea.getAttribute('data-selected-file');
+                if (storedFile) {
+                    try {
+                        const fileInfo = JSON.parse(storedFile);
+                        alert(`File "${fileInfo.name}" is selected but not properly attached. Please try selecting the file again.`);
+                    } catch (e) {
+                        alert('File is selected but not properly attached. Please try selecting the file again.');
+                    }
+                } else {
+                    alert('Please select a file before uploading.');
+                }
+                return false;
+            }
+            
+            // Check file type
+            const file = fileInput.files[0];
+            if (!file.type.startsWith('image/')) {
+                e.preventDefault();
+                alert('Please select an image file (PNG, JPG, JPEG, GIF, BMP).');
+                return false;
+            }
+            
+            // Show loading state
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+            
+            return true;
         }
 
         function setupFileUpload() {
@@ -290,17 +332,33 @@
             // File selection
             fileInput.addEventListener('change', (e) => {
                 if (e.target.files.length > 0) {
-                    showFilePreview(e.target.files[0]);
+                    const file = e.target.files[0];
+                    showFilePreview(file);
+                    
+                    // Store the file reference in the upload area
+                    uploadArea.setAttribute('data-selected-file', JSON.stringify({
+                        name: file.name,
+                        size: file.size,
+                        type: file.type
+                    }));
                 }
             });
         }
 
         function showFilePreview(file) {
             const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
             
             if (file.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
+                    // Store the file in a data attribute for later retrieval
+                    uploadArea.setAttribute('data-selected-file', JSON.stringify({
+                        name: file.name,
+                        size: file.size,
+                        type: file.type
+                    }));
+                    
                     uploadArea.innerHTML = `
                         <img src="${e.target.result}" class="img-fluid mb-3" style="max-height: 150px; object-fit: contain; border-radius: 8px; border: 1px solid #dee2e6;">
                         <p class="mb-2">Selected: <strong>${file.name}</strong></p>
@@ -309,6 +367,14 @@
                             Change File
                         </button>
                     `;
+                    
+                    // Ensure the file input still has the file
+                    if (fileInput && fileInput.files.length === 0) {
+                        // Re-attach the file to the input
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        fileInput.files = dataTransfer.files;
+                    }
                 };
                 reader.readAsDataURL(file);
             } else {
@@ -491,4 +557,4 @@
         }
     </script>
 </body>
-</html> 
+</html>

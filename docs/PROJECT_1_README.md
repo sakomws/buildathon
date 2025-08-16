@@ -10,7 +10,12 @@ cd p1
 chmod +x run_web_ui.sh
 ./run_web_ui.sh
 ```
-Then open your browser to: **http://localhost:8000**
+The script will automatically find an available port and display the URL. Check the terminal output for the exact address.
+
+**To stop the server:**
+```bash
+./stop_web_ui.sh
+```
 
 ### **Option 2: Command Line Interface**
 ```bash
@@ -134,6 +139,14 @@ python setup_openai.py
 # Check dependencies
 pip install -r requirements.txt
 
-# Check port availability
-lsof -i :8000
+# Stop any existing server
+./stop_web_ui.sh
+
+# Try launching again
+./run_web_ui.sh
 ```
+
+**Port conflicts resolved automatically**
+- The launcher script automatically finds available ports (8000-8099)
+- Existing servers are automatically stopped before starting new ones
+- No more manual port management needed
