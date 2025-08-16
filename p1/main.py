@@ -971,21 +971,23 @@ class VisualMemorySearch:
                 ]
             }}
 
-            Results to evaluate:
+            Results to evaluate ({len(results)} total):
             """
             
             for i, result in enumerate(results):
                 validation_prompt += f"""
                 Result {i+1}: {result['filename']}
-                - Visual Description: {result['visual_description'][:200]}...
-                - OCR Text: {result['ocr_text'][:150]}...
-                - Current Score: {result['confidence_score']:.3f}
-                
-                Index: {i}
+                - Visual: {result['visual_description'][:100]}...
+                - OCR: {result['ocr_text'][:80]}...
+                - Score: {result['confidence_score']:.3f}
+                - Index: {i}
                 """
             
             validation_prompt += """
-            IMPORTANT: Respond ONLY with valid JSON in the exact format shown above.
+            IMPORTANT: 
+            1. Respond ONLY with valid JSON in the exact format shown above
+            2. You MUST validate ALL results (all indices 0 to {len(results)-1})
+            3. Keep explanations concise but accurate
             """
             
             logger.info("Sending validation request to OpenAI...")
@@ -997,7 +999,7 @@ class VisualMemorySearch:
                     {"role": "system", "content": "You are a precise UI/UX analyst. You must respond with valid JSON only."},
                     {"role": "user", "content": validation_prompt}
                 ],
-                max_tokens=800,
+                max_tokens=1500,  # Increased from 800 to handle multiple results
                 temperature=0.1
             )
             
@@ -1007,8 +1009,10 @@ class VisualMemorySearch:
             # Parse OpenAI response
             try:
                 validation_data = json.loads(response.choices[0].message.content.strip())
+                logger.info(f"Parsed validation data: {len(validation_data.get('results', []))} results")
                 
                 # Update results with OpenAI validation
+                validated_count = 0
                 for validation in validation_data.get('results', []):
                     idx = validation.get('index', 0)
                     if idx < len(results):
@@ -1023,8 +1027,21 @@ class VisualMemorySearch:
                         # Weight: 40% original algorithm, 60% OpenAI validation
                         final_score = (original_score * 0.4) + (openai_score * 0.6)
                         results[idx]['final_score'] = final_score
+                        validated_count += 1
+                        logger.info(f"Validated result {idx}: {results[idx]['filename']} - OpenAI score: {openai_score:.3f}")
+                    else:
+                        logger.warning(f"OpenAI returned index {idx} but we only have {len(results)} results")
                 
-                logger.info("OpenAI validation completed successfully")
+                logger.info(f"OpenAI validation completed: {validated_count}/{len(results)} results validated")
+                
+                # Ensure all results have final scores
+                for i, result in enumerate(results):
+                    if 'final_score' not in result:
+                        result['final_score'] = result['confidence_score']
+                        result['openai_score'] = None
+                        result['openai_explanation'] = 'Not validated by OpenAI'
+                        result['openai_tags'] = []
+                        logger.warning(f"Result {i} ({result['filename']}) was not validated by OpenAI")
                 
             except json.JSONDecodeError as e:
                 logger.warning(f"Failed to parse OpenAI response: {e}")
