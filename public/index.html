@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice-to-Slide Generator</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Header Section -->
+    <header class="header">
+        <div class="header-content">
+            <button class="preview-btn">
+                <i class="fas fa-eye"></i> Preview
+            </button>
+            
+            <div class="feature-icons">
+                <div class="icon-circle">
+                    <i class="fas fa-microphone"></i>
+                </div>
+                <div class="icon-circle">
+                    <i class="fas fa-magic"></i>
+                </div>
+                <div class="icon-circle">
+                    <i class="fas fa-presentation"></i>
+                </div>
+            </div>
+            
+            <h1 class="main-title">Voice-to-Slide Generator</h1>
+            <p class="subtitle">Transform your 3-minute spoken presentation into a professional, AI-powered slide deck with speaker notes in seconds</p>
+            
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-dot green"></div>
+                    <span>AI-Powered</span>
+                </div>
+                <div class="feature">
+                    <div class="feature-dot blue"></div>
+                    <span>5 Professional Slides</span>
+                </div>
+                <div class="feature">
+                    <div class="feature-dot purple"></div>
+                    <span>Export Ready</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Section -->
+    <main class="main-content">
+        <div class="content-card">
+            <h2 class="card-title">Voice-to-Slide Generator</h2>
+            <p class="status-message" id="statusMessage">Application is working</p>
+            
+            <!-- Audio Input Section -->
+            <div class="audio-section">
+                <div class="input-methods">
+                    <div class="input-method">
+                        <h3><i class="fas fa-upload"></i> Upload Audio</h3>
+                        <div class="file-upload-area" id="fileUploadArea">
+                            <input type="file" id="audioFile" accept=".mp3,.wav,.m4a" hidden>
+                            <div class="upload-content">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p>Drag & drop audio file or click to browse</p>
+                                <small>Max 50MB • MP3, WAV, M4A</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="input-method">
+                        <h3><i class="fas fa-microphone"></i> Record Audio</h3>
+                        <div class="recording-controls">
+                            <button class="record-btn" id="recordBtn">
+                                <i class="fas fa-microphone"></i> Start Recording
+                            </button>
+                            <div class="timer" id="timer">00:00</div>
+                            <div class="recording-status" id="recordingStatus">Ready to record</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Processing Section -->
+            <div class="processing-section" id="processingSection" style="display: none;">
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">Processing audio...</div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <div class="transcript-section">
+                    <h3><i class="fas fa-file-alt"></i> Transcription</h3>
+                    <div class="transcript-display" id="transcriptDisplay">
+                        <p>No transcription available</p>
+                    </div>
+                </div>
+                
+                <div class="slides-preview">
+                    <h3><i class="fas fa-presentation"></i> Generated Slides</h3>
+                    <div class="slides-container" id="slidesContainer"></div>
+                </div>
+                
+                <div class="export-options">
+                    <button class="export-btn" id="exportHtmlBtn">
+                        <i class="fas fa-download"></i> Export as HTML
+                    </button>
+                    <button class="export-btn secondary" id="exportPdfBtn" disabled>
+                        <i class="fas fa-file-pdf"></i> Export as PDF (Coming Soon)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Test Button -->
+            <button class="test-btn" id="testBtn">
+                <i class="fas fa-play"></i> Test Button
+            </button>
+        </div>
+    </main>
+
+    <!-- Help Icon -->
+    <div class="help-icon">
+        <i class="fas fa-question"></i>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal" id="loadingModal" style="display: none;">
+        <div class="modal-content">
+            <div class="spinner"></div>
+            <h3 id="modalTitle">Processing...</h3>
+            <p id="modalMessage">Please wait while we process your audio</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+

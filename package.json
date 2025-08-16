@@ -1,0 +1,33 @@
+{
+  "name": "voice-to-slide-generator",
+  "version": "1.0.0",
+  "description": "Transform your 3-minute spoken presentation into a professional, AI-powered slide deck with speaker notes in seconds",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "build": "webpack --mode production",
+    "test": "jest"
+  },
+  "keywords": ["voice", "slides", "ai", "presentation", "openai"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.20.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "fluent-ffmpeg": "^2.1.2",
+    "uuid": "^9.0.1",
+    "path": "^0.12.7",
+    "fs-extra": "^11.1.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4",
+    "jest": "^29.7.0"
+  }
+}
+
