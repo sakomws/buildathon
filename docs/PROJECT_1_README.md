@@ -10,7 +10,7 @@ cd p1
 chmod +x run_web_ui.sh
 ./run_web_ui.sh
 ```
-Then open your browser to: **http://localhost:5000**
+Then open your browser to: **http://localhost:8000**
 
 ### **Option 2: Command Line Interface**
 ```bash
@@ -129,127 +129,11 @@ python setup_openai.py
 
 ### **Automated Testing**
 ```bash
-cd p1
-python test_search.py
-```
-
-### **Manual Testing**
-```bash
-cd p1
-python demo.py
-```
-
-### **Test Dataset**
-The system includes 12 diverse screenshot types:
-- Authentication interfaces (login, error messages)
-- E-commerce product pages
-- Social media feeds
-- Gaming interfaces
-- Email clients
-- Weather applications
-- Dashboard layouts
-- Form interfaces
-
-## 📁 **File Structure**
-
-```
-p1/
-├── main.py                     # Core VisualMemorySearch class
-├── app.py                      # Flask web application
-├── requirements.txt            # Python dependencies
-├── quick_start.sh              # CLI setup script
-├── run_web_ui.sh              # Web UI launcher
-├── demo.py                     # Interactive CLI demo
-├── test_search.py              # Automated testing
-├── generate_test_dataset.py    # Test data generation
-├── config.py                   # Configuration settings
-├── setup_openai.py             # OpenAI setup helper
-├── templates/                  # Web UI templates
-│   └── index.html             # Main web interface
-├── uploads/                    # User-uploaded screenshots
-└── test_screenshots/           # Generated test dataset
-```
-
-## 🚀 **Performance**
-
-### **Search Speed**
-- **Local Models Only**: ~2-5 seconds per query
-- **With OpenAI**: ~3-8 seconds per query (including API calls)
-
-### **Accuracy**
-- **Text-based Queries**: 90%+ accuracy for OCR text matches
-- **Visual Queries**: 85%+ accuracy with OpenAI integration
-- **Semantic Queries**: 80%+ accuracy for concept-based searches
-
-## 🔍 **Advanced Features**
-
-### **AI-Powered Validation**
-- OpenAI GPT-3.5-turbo result validation
-- Weighted scoring combining local and AI algorithms
-- Explainable confidence scores with reasoning
-
-### **Smart Query Enhancement**
-- Automatic query expansion for better results
-- Semantic understanding of search intent
-- Context-aware result boosting
-
-### **Comprehensive Metadata**
-- UI pattern detection (grid, card-based, sidebar)
-- Layout structure analysis (mobile/desktop, landscape/portrait)
-- Content type classification (text-heavy, data visualization, forms)
-
-## 🐛 **Troubleshooting**
-
-### **Common Issues**
-
-**Tesseract not found**
-```bash
-# macOS
-brew install tesseract
-
-# Ubuntu/Debian
-sudo apt-get install tesseract-ocr
-```
-
-**OpenAI API errors**
-```bash
-# Check API key
-echo $OPENAI_API_KEY
-
-# Test connection
-python setup_openai.py
-```
-
 **Web UI won't start**
 ```bash
 # Check dependencies
 pip install -r requirements.txt
 
 # Check port availability
-lsof -i :5000
+lsof -i :8000
 ```
-
-### **Performance Optimization**
-- Use SSD storage for faster image processing
-- Ensure sufficient RAM for AI model loading
-- Consider GPU acceleration for large datasets
-
-## 🔮 **Future Enhancements**
-
-- **Real-time Indexing**: Watch folders for automatic updates
-- **Batch Processing**: Process multiple images simultaneously
-- **Advanced Filters**: Date, size, and metadata filtering
-- **Export Results**: Save search results to various formats
-- **API Endpoints**: RESTful API for integration
-- **Mobile App**: Native mobile application
-
-## 📚 **Additional Resources**
-
-- [OpenAI Integration Guide](PROJECT_1_OPENAI_README.md)
-- [Architecture Details](PROJECT_1_STRUCTURE.md)
-- [Test Dataset Guide](PROJECT_1_TEST_DATASET.md)
-- [Web UI Documentation](PROJECT_1_STRUCTURE.md#web-interface)
-
----
-
-**Ready to search your visual memory? Start with the [web interface](PROJECT_1_README.md#option-1-web-ui-recommended-for-testing) for the best experience! 🚀** 

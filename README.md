@@ -38,6 +38,7 @@ open docs/README.md
 cd p1
 chmod +x quick_start.sh
 ./quick_start.sh
+# Or use the web UI: ./run_web_ui.sh (opens at http://localhost:8000)
 ```
 
 ## 🛠️ **Tech Stack**

@@ -42,8 +42,8 @@ mkdir -p uploads
 
 echo ""
 echo "✅ Setup complete! Starting web server..."
-echo "🌐 Open your browser and go to: http://localhost:5000"
-echo "📱 The web UI will be available at: http://localhost:5000"
+echo "🌐 Open your browser and go to: http://localhost:8000"
+echo "📱 The web UI will be available at: http://localhost:8000"
 echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
