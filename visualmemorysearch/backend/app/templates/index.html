@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Memory Search API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .endpoint {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .method {
+            font-weight: bold;
+            color: #007bff;
+        }
+        .url {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .description {
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔍 Visual Memory Search API</h1>
+        <p>A FastAPI application for searching screenshot history using natural language queries</p>
+    </div>
+
+    <h2>Available Endpoints</h2>
+    
+    <div class="endpoint">
+        <div class="method">GET</div>
+        <div class="url">/api/screenshots</div>
+        <div class="description">Get list of all indexed screenshots</div>
+    </div>
+
+    <div class="endpoint">
+        <div class="method">POST</div>
+        <div class="url">/api/search</div>
+        <div class="description">Search screenshots using natural language queries</div>
+    </div>
+
+    <div class="endpoint">
+        <div class="method">GET</div>
+        <div class="url">/docs</div>
+        <div class="description">Interactive API documentation (Swagger UI)</div>
+    </div>
+
+    <div class="endpoint">
+        <div class="method">GET</div>
+        <div class="url">/redoc</div>
+        <div class="description">Alternative API documentation (ReDoc)</div>
+    </div>
+
+    <h2>Frontend Application</h2>
+    <p>The main frontend application is running separately on <strong>http://localhost:3000</strong></p>
+    
+    <h2>Quick Start</h2>
+    <p>1. View the <a href="/docs">API documentation</a> to explore all available endpoints</p>
+    <p>2. Use the frontend at <a href="http://localhost:3000" target="_blank">http://localhost:3000</a> for the full user interface</p>
+    <p>3. The API supports both text and visual search queries</p>
+</body>
+</html>
+
+
